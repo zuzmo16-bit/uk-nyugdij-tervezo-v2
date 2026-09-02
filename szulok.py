@@ -1,88 +1,94 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 
 # Oldal konfiguráció
-st.set_page_config(page_title="UK Retirement & Tax Strategy", layout="wide", page_icon="🛡️")
+st.set_page_config(page_title="UK HoldCo Investment Strategy", layout="wide", page_icon="📈")
 
-st.title("🛡️ UK Nyugdíj & Privát Vagyonkezelő Szimulátor")
-st.warning("Figyelem: A Director's Loan (tagi kölcsön) bonyolult adózási kérdéseket vethet fel. Ez a modell a tőke mozgását és a hozamokat szimulálja, de mindenképpen konzultálj brit adótanácsadóval!")
+st.title("📈 SIPP -> HoldCo Befektetési Stratégia")
+st.write("A modell azt szimulálja, amikor a SIPP 25%-át a Holding cégbe fekteted be (Vanguard All-World), és onnan kapod vissza a törlesztést.")
 
-# 🎛️ BEÁLLÍTÁSOK
+# 🎛️ PARAMÉTEREK
 st.sidebar.header("📌 Alapadatok")
 current_age = st.sidebar.slider("Jelenlegi életkor", 18, 75, 43)
-working_years = st.sidebar.slider("Hány évig fizetsz még be a SIPP-be? (Céges befizetés)", 0, 40, 14)
+working_years = st.sidebar.slider("Hány évig termel még a cég? (SIPP befizetés)", 0, 40, 14)
 target_age = 100 
 
 st.sidebar.markdown("---")
-st.sidebar.header("🔓 SIPP Stratégia (57+ év)")
-lump_sum_age = st.sidebar.slider("25% Tax-Free kifizetés életkora", 57, 75, 57)
-monthly_income_target = st.sidebar.number_input("Havi cél jövedelem (nettó £)", value=3000, step=100)
+st.sidebar.header("🔓 SIPP & HoldCo Esemény")
+lump_sum_age = st.sidebar.slider("SIPP 25% kivétel életkora", 57, 75, 57)
+monthly_payout = st.sidebar.number_input("Havi kifizetés a Holdingból (£)", value=3000)
 
 st.sidebar.markdown("---")
-st.sidebar.header("🏦 Pénzügyi Paraméterek")
+st.sidebar.header("💰 Pénzügyi Beállítások")
 initial_sipp = st.sidebar.number_input("Jelenlegi SIPP egyenleg (£)", value=11000)
-monthly_pension_cont = st.sidebar.number_input("Havi céges befizetés (Gross) (£)", value=5000)
-annual_return = st.sidebar.slider("Várható éves piaci hozam (%)", 1.0, 12.0, 7.5)
+monthly_cont = st.sidebar.number_input("Havi céges SIPP befizetés (£)", value=5000)
+
+st.sidebar.header("📈 Piaci Hozamok")
+market_return = st.sidebar.slider("Vanguard All-World várható hozam (%)", 1.0, 12.0, 7.5)
 inflation = st.sidebar.slider("Várható infláció (%)", 0.0, 8.0, 2.5)
 
-# Matematikai alapok (Reálhozam)
-real_annual_rate = ((1 + (annual_return / 100)) / (1 + (inflation / 100))) - 1
-m_rate = (1 + real_annual_rate) ** (1/12) - 1
+# Reálhozam számítás
+real_rate = ((1 + (market_return / 100)) / (1 + (inflation / 100))) - 1
+m_rate = (1 + real_rate) ** (1/12) - 1
 
-# Szimulációs tömbök
+# Szimuláció
 ages = []
+sipp_vals = []
+holdco_vals = []
 total_wealth = []
-sipp_bal = []
-private_bal = [] # Ez a 'Privát Befektetési Alap', ahol a 25% kamatozik
 
-# Kezdőértékek
 current_sipp = initial_sipp
-current_private = 0
+current_holdco = 0
 pcls_taken = False
+director_loan_account = 0
 
-for m in range((target_age - current_age) * 12 + 1):
+total_months = (target_age - current_age) * 12
+
+for m in range(total_months + 1):
     age = current_age + (m / 12)
     ages.append(age)
     
-    # 1. Hozamok
+    # 1. Piaci növekedés (SIPP és HoldCo is befektetve van)
     current_sipp *= (1 + m_rate)
-    current_private *= (1 + m_rate)
+    current_holdco *= (1 + m_rate)
     
-    # 2. Befizetés (amíg dolgozol)
+    # 2. Aktív évek befizetései
     if m <= (working_years * 12):
-        current_sipp += monthly_pension_cont
+        current_sipp += monthly_cont
         
-    # 3. 25% Tax-Free Lump Sum (Ezt kiveszed és félreteszed befektetésbe)
+    # 3. A NAGY ESEMÉNY: SIPP 25% -> Holding (Vanguard)
     if age >= lump_sum_age and not pcls_taken:
-        amount = current_sipp * 0.25
-        current_sipp -= amount
-        current_private += amount # Átkerül a privát portfólióba
+        lump_sum_val = current_sipp * 0.25
+        current_sipp -= lump_sum_val
+        current_holdco += lump_sum_val # A Holding befekteti a pénzt
+        director_loan_account = lump_sum_val # Ennyivel tartozik a cég neked
         pcls_taken = True
 
-    # 4. Jövedelem kifizetése (Drawdown)
-    if age >= lump_sum_age:
-        # Először a privát portfóliót (25%-ot) éljük fel, mert az már adózott pénz
-        if current_private >= monthly_income_target:
-            current_private -= monthly_income_target
+    # 4. Kifizetés: Törlesztés a Holdingból
+    if pcls_taken:
+        if current_holdco >= monthly_payout:
+            current_holdco -= monthly_payout
+            # A DLA (Director's Loan Account) fogy, amíg tart, addig adómentes
+            director_loan_account = max(0, director_loan_account - monthly_payout)
         else:
-            remainder = monthly_income_target - current_private
-            current_private = 0
+            # Ha a Holding elfogy, a SIPP-ből vonjuk le a maradékot
+            remainder = monthly_payout - current_holdco
+            current_holdco = 0
             current_sipp = max(0, current_sipp - remainder)
 
-    sipp_bal.append(current_sipp)
-    private_bal.append(current_private)
-    total_wealth.append(current_sipp + current_private)
+    sipp_vals.append(current_sipp)
+    holdco_vals.append(current_holdco)
+    total_wealth.append(current_sipp + current_holdco)
 
-# --- GRAFIKON ---
+# --- VIZUALIZÁCIÓ ---
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=ages, y=total_wealth, name='Összesített Vagyon (Reálérték)', line=dict(color='royalblue', width=4)))
-fig.add_trace(go.Scatter(x=ages, y=sipp_bal, name='SIPP (Adóköteles rész)', line=dict(color='lightblue', dash='dash')))
-fig.add_trace(go.Scatter(x=ages, y=private_bal, name='Privát Alap (A 25% hozamaival)', line=dict(color='orange', dash='dot')))
+fig.add_trace(go.Scatter(x=ages, y=total_wealth, name='Teljes Nettó Vagyon', line=dict(color='royalblue', width=4)))
+fig.add_trace(go.Scatter(x=ages, y=sipp_vals, name='SIPP egyenleg (Vanguard)', line=dict(color='lightblue', dash='dash')))
+fig.add_trace(go.Scatter(x=ages, y=holdco_vals, name='HoldCo egyenleg (Vanguard)', line=dict(color='gold', width=2)))
 
 fig.update_layout(
-    title="Vagyonfelépítés és Felélés (Inflációval korrigálva)",
+    title=f"HoldCo Stratégia: {lump_sum_age} éves kortól havi £{monthly_payout} kifizetés",
     xaxis_title="Életkor",
     yaxis_title="Vagyon (£)",
     height=600,
@@ -91,16 +97,17 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True)
 
-# KPI blokk
-st.markdown("### 📊 Mérföldkövek")
-col1, col2 = st.columns(2)
-col1.metric("SIPP értéke a kifizetéskor", f"£{max(sipp_bal + private_bal):,.0f}")
-col2.metric("Örökség 100 évesen", f"£{total_wealth[-1]:,.0f}")
+# Összegző infó
+st.markdown("### 📝 Stratégiai összefoglaló")
+col1, col2, col3 = st.columns(3)
+col1.metric("Kivett PCLS összeg", f"£{director_loan_account + (monthly_payout * (target_age-lump_sum_age)*12 if not pcls_taken else 0):,.0f}")
+col2.metric("Holding kifutási ideje", f"{'Elfogy' if holdco_vals[-1] == 0 else 'Kitart 100 éves korig'}")
+col3.metric("Végső örökség (100 év)", f"£{total_wealth[-1]:,.0f}")
 
 st.info(f"""
-**Hogyan működik ez a modell adózási szempontból?**
-1. **SIPP Befizetés:** A céged levonja a profitból (Corporation Tax megtakarítás).
-2. **57 évesen:** Kiveszed a 25%-ot. Ez a HMRC szerint adómentes. Nem kölcsönként, hanem **magánvagyonként** kezeled.
-3. **Kifizetés:** A havi £{monthly_income_target}-ot először ebből a magánvagyonból fedezed. Mivel ez már a te pénzed, nincs jövedelemadó rajta.
-4. **SIPP Maradék:** Amíg a magánpénzedből élsz, a SIPP-ed (75%) tovább termeli a hozamot adómentes környezetben.
+**Hogyan működik ez a szimuláció?**
+1. **SIPP fázis:** 57 éves korig a céged havi £{monthly_cont}-t tesz be adómentesen.
+2. **Transfer:** {lump_sum_age} évesen a SIPP 25%-a átkerül a Holdingba. Ezt a cég **Vanguard All-World**-be fekteti.
+3. **Repayment:** A cég havi £{monthly_payout}-t fizet neked. Ez a HMRC szemében **tagi kölcsön visszafizetése**, tehát nem jövedelemadó-köteles számodra, amíg a tőke tart.
+4. **Hozam:** A Holdingban lévő pénz nem csak 'ül', hanem a piaci {market_return}%-kal növekszik, ami jelentősen kitolja azt az időt, amíg a Holdingból tudsz élni.
 """)
