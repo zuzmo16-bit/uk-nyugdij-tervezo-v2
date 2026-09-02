@@ -3,31 +3,51 @@ import numpy as np
 import plotly.graph_objects as go
 
 # Oldal konfiguráció
-st.set_page_config(page_title="SIPP to HoldCo Transfer Strategy", layout="wide", page_icon="🏦")
+st.set_page_config(page_title="UK SIPP Meltdown Strategy", layout="wide", page_icon="📉")
 
-st.title("🏦 SIPP-ből Holdingba (HoldCo) Átmentési Stratégia")
-st.write("A cél: 57 és 75 éves kor között a teljes SIPP vagyont átmozgatni a Holding társaságba a lehető legoptimálisabb adózás mellett.")
+st.title("📉 SIPP-ből Holdingba: 20%-os Adósáv Optimalizáló")
+st.write("Ez a modell a SIPP fokozatos kiürítését és a Holding (HoldCo) feltöltését szimulálja, ügyelve a 20%-os adólimitre.")
 
-# 🎛️ PARAMÉTEREK
+# --- SIDEBAR / MENÜ ---
 st.sidebar.header("📌 Alapadatok")
 current_age = st.sidebar.slider("Jelenlegi életkor", 18, 56, 43)
 working_years = st.sidebar.slider("Hány évig fizet még a cég a SIPP-be?", 0, 40, 14)
-target_age = 100 
 
 st.sidebar.markdown("---")
-st.sidebar.header("💰 SIPP és Befizetések")
+st.sidebar.header("🔓 Kivételi Stratégia (57+ év)")
+
+# Bruttó kivét csúszka (£4,189-ig, ami a 20%-os sáv teteje havi szinten)
+gross_monthly = st.sidebar.slider(
+    "Havi bruttó kivét a SIPP-ből (£)", 
+    min_value=500, 
+    max_value=4189, 
+    value=4189,
+    help="£4,189 felett már 40% adót kellene fizetned. Maradjunk ez alatt."
+)
+
+# Nettó számítás a menübe
+personal_allowance_monthly = 1047.50 # Évi £12,570 / 12
+if gross_monthly <= personal_allowance_monthly:
+    net_monthly = gross_monthly
+else:
+    taxable = gross_monthly - personal_allowance_monthly
+    net_monthly = personal_allowance_monthly + (taxable * 0.8)
+
+st.sidebar.info(f"**Nettó érték a kezedbe:** £{net_monthly:,.2f} / hó\n\n(Ez kerül át havonta a Holdingba)")
+
+st.sidebar.markdown("---")
+st.sidebar.header("💰 SIPP és Piac")
 initial_sipp = st.sidebar.number_input("Jelenlegi SIPP egyenleg (£)", value=11000)
 monthly_cont = st.sidebar.number_input("Havi céges SIPP befizetés (£)", value=5000)
 
-st.sidebar.header("📈 Piaci Hozamok (Vanguard)")
-market_return = st.sidebar.slider("Várható éves hozam (%)", 1.0, 12.0, 7.5)
-inflation = st.sidebar.slider("Várható éves infláció (%)", 0.0, 8.0, 2.5)
+market_return = st.sidebar.slider("Vanguard All-World hozam (%)", 1.0, 12.0, 7.5)
+inflation = st.sidebar.slider("Várható infláció (%)", 0.0, 8.0, 2.5)
 
-# Matek
+# --- MATEMATIKAI ALAPOK ---
 real_rate = ((1 + (market_return / 100)) / (1 + (inflation / 100))) - 1
 m_rate = (1 + real_rate) ** (1/12) - 1
 
-# Szimuláció
+# --- SZIMULÁCIÓ ---
 ages = []
 sipp_vals = []
 holdco_vals = []
@@ -36,89 +56,86 @@ total_tax_paid = 0
 current_sipp = initial_sipp
 current_holdco = 0
 pcls_taken = False
+sipp_emptied_age = None
 
-# Idővonal (hónapokban)
+target_age = 100
 total_months = (target_age - current_age) * 12
 
 for m in range(total_months + 1):
     age = current_age + (m / 12)
     ages.append(age)
     
-    # 1. Hozamok (SIPP és HoldCo is pörög a Vanguardban)
+    # 1. Piaci hozam hozzáadása (MINDEN hónapban kamatozik a maradék!)
     current_sipp *= (1 + m_rate)
     current_holdco *= (1 + m_rate)
     
-    # 2. Befizetési szakasz (57 éves korig vagy amíg tart a munka)
+    # 2. Befizetési szakasz (57 éves korig)
     if age < 57 and m <= (working_years * 12):
         current_sipp += monthly_cont
         
-    # 3. A NAGY TRANSZFER (57-75 éves kor között)
-    if 57 <= age < 75:
-        # A) Első lépés: 57 évesen a 25% PCLS kivétele
+    # 3. Transzfer szakasz (57 éves kortól)
+    if age >= 57:
+        # A) 25% Tax-Free Lump Sum azonnali átmozgatása
         if not pcls_taken:
-            lump_sum_tax_free = current_sipp * 0.25
-            current_sipp -= lump_sum_tax_free
-            current_holdco += lump_sum_tax_free
+            lump_sum = current_sipp * 0.25
+            current_sipp -= lump_sum
+            current_holdco += lump_sum
             pcls_taken = True
         
-        # B) Második lépés: A maradék 75% kiszívása havi adagokban
-        # Kiszámoljuk, mennyi kell havonta, hogy 75 évesre 0 legyen (annuitás szerűen)
-        months_left = (75 - age) * 12
-        if months_left > 0:
-            raw_withdrawal = current_sipp / months_left
+        # B) Havi 'Meltdown' a beállított összeggel
+        if current_sipp > 0:
+            actual_gross = min(current_sipp, gross_monthly)
             
-            # ADÓZÁS (Brit sávos jövedelemadó - havi szintekre bontva)
-            # Personal Allowance: ~£1047/hó (0%)
-            # Basic Rate: £1047 - £4189 (20%)
-            # Higher Rate: £4189+ (40%)
+            # Adószámítás
+            if actual_gross <= personal_allowance_monthly:
+                tax = 0
+            else:
+                tax = (actual_gross - personal_allowance_monthly) * 0.20
             
-            taxable = raw_withdrawal
-            monthly_tax = 0
+            total_tax_paid += tax
+            net_to_holdco = actual_gross - tax
             
-            if taxable > 4189:
-                monthly_tax += (taxable - 4189) * 0.40
-                taxable = 4189
-            if taxable > 1047:
-                monthly_tax += (taxable - 1047) * 0.20
+            current_sipp -= actual_gross
+            current_holdco += net_to_holdco
             
-            total_tax_paid += monthly_tax
-            net_transfer = raw_withdrawal - monthly_tax
-            
-            # SIPP csökken, Holding nő a nettóval
-            current_sipp -= raw_withdrawal
-            current_holdco += net_transfer
+            if current_sipp <= 0:
+                sipp_emptied_age = age
 
     sipp_vals.append(current_sipp)
     holdco_vals.append(current_holdco)
 
-# --- VIZUALIZÁCIÓ ---
-st.markdown("### 📊 Az átmentési stratégia látványterve")
+# --- MEGJELENÍTÉS ---
+st.markdown(f"### 📊 SIPP Ürítési Terv: {sipp_emptied_age:.1f if sipp_emptied_age else '>100'} éves korra fogy el a SIPP")
 
 fig = go.Figure()
-# SIPP vonal - el kell fogynia 75-re
-fig.add_trace(go.Scatter(x=ages, y=sipp_vals, name='SIPP egyenleg (Ürítés alatt)', fill='tozeroy', line=dict(color='lightblue')))
-# HoldCo vonal - felépül a SIPP-ből
-fig.add_trace(go.Scatter(x=ages, y=holdco_vals, name='Holding (HoldCo) vagyon', line=dict(color='gold', width=4)))
+fig.add_trace(go.Scatter(x=ages, y=sipp_vals, name='SIPP egyenleg (Folyamatos kamatozás alatt)', fill='tozeroy', line=dict(color='lightblue')))
+fig.add_trace(go.Scatter(x=ages, y=holdco_vals, name='HoldCo Vanguard portfólió', line=dict(color='gold', width=4)))
 
 fig.update_layout(
-    title="SIPP likvidálás és HoldCo feltöltés (57-75 év között)",
+    title=f"SIPP likvidálás havi £{gross_monthly} bruttó kivéttel",
     xaxis_title="Életkor",
     yaxis_title="Vagyon (£)",
-    xaxis=dict(range=[current_age, 85]), # 85-ig nézzük, hogy látszódjon a végeredmény
-    height=600
+    height=600,
+    hovermode="x unified"
 )
+# Függőleges vonal 75 évesnél
+fig.add_vline(x=75, line_dash="dash", line_color="red", annotation_text="Cél: 75 év")
+
 st.plotly_chart(fig, use_container_width=True)
 
 # KPI blokk
-c1, c2, c3 = st.columns(3)
-c1.metric("Várható HoldCo vagyon 75 évesen", f"£{holdco_vals[int((75-current_age)*12)]:,.0f}")
-c2.metric("Összesen kifizetett jövedelemadó", f"£{total_tax_paid:,.0f}", delta_color="inverse")
-c3.metric("Holding vagyon 100 évesen", f"£{holdco_vals[-1]:,.0f}")
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("HoldCo vagyon 75 évesen", f"£{holdco_vals[int((75-current_age)*12)]:,.0f}")
+c2.metric("SIPP ürítési életkor", f"{sipp_emptied_age:.1f if sipp_emptied_age else 'Soha'}")
+c3.metric("Összes kifizetett adó", f"£{total_tax_paid:,.0f}")
+c4.metric("HoldCo vagyon 100 évesen", f"£{holdco_vals[-1]:,.0f}")
 
-st.info(f"""
-**Hogyan optimalizáltuk az átvitelt?**
-1. **57 évesen:** A SIPP negyedét (£{holdco_vals[int((57.1-current_age)*12)] if pcls_taken else 0:,.0f}) adómentesen átmozgattuk.
-2. **57-75 év között:** A maradékot havi részletekben vettük ki. 
-3. **Adózás:** A modell figyelembe vette, hogy ha túl gyorsan veszed ki (havi £4,189 felett), akkor 40% adót fizetsz. Ezt levontuk, és csak a 'tiszta' pénzt tetted be a Holdingba.
-4. **Vanguard hatás:** Mivel a Holdingban a pénz azonnal befektetésre kerül, a 75 éves kori egyenleged jóval magasabb, mint amit összesen kivettél a SIPP-ből!
+st.success(f"""
+**A stratégia lényege:**
+- A SIPP-ben maradó pénz havonta kamatozik a **{market_return}%-os** piaci hozammal, miközben folyamatosan csapolod.
+- A kivételt megállítottuk **£{gross_monthly}**-nál, így csak 20%-os adót fizetsz (a Personal Allowance felett).
+- A Holdingba kerülő nettó **£{net_monthly:,.0f}** azonnal a Vanguardba kerül, így nincs 'időveszteség' a kamatos kamat szempontjából.
 """)
+
+if sipp_emptied_age and sipp_emptied_age > 75:
+    st.warning("⚠️ Ezzel a havi összeggel nem érsz a SIPP végére 75 éves korodig. A kamatos kamat gyorsabban termeli a pénzt, mint ahogy kiveszed!")
