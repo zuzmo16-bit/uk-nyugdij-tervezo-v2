@@ -46,7 +46,6 @@ if user_mode == "Órabéres alkalmazott":
     weekend_a = weekend_bonus * weekends_per_year
     active_annual_gross = base_a + weekend_a
     monthly_contribution_total = (active_annual_gross / 12) * ((ee_pct + er_pct) / 100)
-    st.sidebar.info(f"Éves bruttó: £{active_annual_gross:,.0f}")
 
 else:
     st.sidebar.header("🏢 Igazgatói befizetés")
@@ -99,7 +98,6 @@ total_tax_paid = 0
 for m in range((100 - current_age) * 12 + 1):
     age = current_age + (m / 12)
     ages.append(age)
-    
     current_sipp *= (1 + m_rate)
     current_holdco *= (1 + m_rate)
     current_house *= (1 + (inflation / 100)) ** (1/12)
@@ -136,39 +134,55 @@ for m in range((100 - current_age) * 12 + 1):
     house_wealth.append(current_house)
     holdco_vals.append(current_holdco)
 
-# --- VIZUALIZÁCIÓ FRISSÍTÉSE ---
-if sipp_emptied_age:
-    emptied_str = f"{sipp_emptied_age:.1f} éves"
-else:
-    emptied_str = "Soha"
-
+# --- GRAFIKON LÉTREHOZÁSA (GRADIENT STYLE) ---
 fig = go.Figure()
 
-# 1. SIPP - Világoskék vonal + Átmenet
+# 1. SIPP - Világoskék
 fig.add_trace(go.Scatter(
     x=ages, y=sipp_vals, 
     name='SIPP egyenleg (75%)', 
-    fill='tozeroy', 
-    line=dict(color='lightblue', width=3),
-    fillcolor='rgba(173, 216, 230, 0.3)' # Világoskék áttetsző
+    mode='lines',
+    line=dict(color='#87CEEB', width=3),
+    fill='tozeroy',
+    fillgradient=dict(
+        type='vertical',
+        stops=[
+            dict(offset=0, color='rgba(255, 255, 255, 0)'), # Alul fehér/átlátszó
+            dict(offset=1, color='rgba(135, 206, 235, 0.4)') # Felül világoskék
+        ]
+    )
 ))
 
-# 2. HÁZ - Királykék vonal + Átmenet
+# 2. HÁZ - Királykék
 fig.add_trace(go.Scatter(
     x=ages, y=house_wealth, 
     name='Ingatlan értéke (25%)', 
-    fill='tozeroy', 
+    mode='lines',
     line=dict(color='royalblue', width=3),
-    fillcolor='rgba(65, 105, 225, 0.2)' # Királykék áttetsző
+    fill='tozeroy',
+    fillgradient=dict(
+        type='vertical',
+        stops=[
+            dict(offset=0, color='rgba(255, 255, 255, 0)'), # Alul fehér
+            dict(offset=1, color='rgba(65, 105, 225, 0.4)') # Felül királykék
+        ]
+    )
 ))
 
-# 3. HOLDING - Arany vonal + Átmenet
+# 3. HOLDING - Arany
 fig.add_trace(go.Scatter(
     x=ages, y=holdco_vals, 
-    name='HoldCo (Arany portfólió)', 
-    fill='tozeroy', 
+    name='HoldCo (Befektetés)', 
+    mode='lines',
     line=dict(color='gold', width=4),
-    fillcolor='rgba(255, 215, 0, 0.15)' # Arany áttetsző
+    fill='tozeroy',
+    fillgradient=dict(
+        type='vertical',
+        stops=[
+            dict(offset=0, color='rgba(255, 255, 255, 0)'), # Alul fehér
+            dict(offset=1, color='rgba(255, 215, 0, 0.4)') # Felül arany
+        ]
+    )
 ))
 
 fig.update_layout(
@@ -176,23 +190,19 @@ fig.update_layout(
     yaxis_title="Vagyon (£)",
     height=650,
     hovermode="x unified",
-    template="plotly_white", # Tiszta fehér háttér
-    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
-    margin=dict(l=20, r=20, t=40, b=20)
+    template="plotly_white",
+    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
 )
-
-# Jelölők finomítása
-fig.add_vline(x=pcls_age, line_dash="dot", line_color="gray", annotation_text="Házvétel")
-fig.add_vline(x=drawdown_start_age, line_dash="dash", line_color="gray", annotation_text="Nyugdíj")
 
 st.plotly_chart(fig, use_container_width=True)
 
 # --- KPI-K ---
+if sipp_emptied_age: emptied_str = f"{sipp_emptied_age:.1f} éves"
+else: emptied_str = "Soha"
+
 c1, c2, c3, c4 = st.columns(4)
 proj_net = calculate_net(gross_monthly_withdrawal, (state_p_annual/12))
 c1.metric("Várható havi nettó", f"£{proj_net:,.0f}")
 c2.metric("SIPP ürítési kor", emptied_str)
 c3.metric("Összes adó", f"£{total_tax_paid:,.0f}")
-c4.metric("Összes vagyon 100 évesen", f"£{(holdco_vals[-1] + house_wealth[-1]):,.0f}")
-
-st.info(f"**Vizuális magyarázat:** A vastag vonalak jelzik az aktuális egyenleget, a vonalak alatti színes sávok pedig segítenek elkülöníteni a vagyonelemeket. A fehér háttérbe simuló színek a modern portfólió-elemzések stílusát követik.")
+c4.metric("Vagyon 100 évesen", f"£{(holdco_vals[-1] + house_wealth[-1]):,.0f}")
