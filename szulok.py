@@ -219,3 +219,52 @@ df_szulok = pd.DataFrame({
 })
 
 fig = go.Figure()
+
+# --- EZ HIÁNYZIK A KÓDOD VÉGÉRŐL ---
+
+st.markdown("---")
+st.header("📈 Vagyon és Biztosítási Érték Alakulása")
+
+# Plotly grafikon létrehozása
+fig = go.Figure()
+
+# 1. Saját vagyon (SIPP + ISA) vonal
+fig.add_trace(go.Scatter(
+    x=ins_ages, 
+    y=hybrid_wealth_trajectory, 
+    mode='lines', 
+    name='Saját felépített vagyon (Reálérték)',
+    line=dict(color='royalblue', width=4)
+))
+
+# 2. Biztosítási kifizetés reálértéke (Vízszintes/Süllyedő vonal)
+fig.add_trace(go.Scatter(
+    x=ins_ages, 
+    y=ins_payout_real, 
+    mode='lines', 
+    name='Életbiztosítás kifizetési értéke (inflációval korrigálva)',
+    line=dict(color='firebrick', width=3, dash='dash')
+))
+
+# Grafikon kinézetének beállítása
+fig.update_layout(
+    title="Vagyon vs. Biztosítási fedezet az idő függvényében",
+    xaxis_title="Életkor (év)",
+    yaxis_title="Összeg (£)",
+    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+    height=600
+)
+
+# Megjelenítés Streamlitben
+st.plotly_chart(fig, use_container_width=True)
+
+# Összegző adatok (KPI-k) megjelenítése a grafikon alatt
+col1, col2, col3 = st.columns(3)
+col1.metric("Végső vagyon (100 évesen)", f"£{hybrid_wealth_trajectory[-1]:,.0f}")
+if gold_cross_age:
+    col2.success(f"⭐ 'Aranykereszt' életkor: {gold_cross_age:.1f} év")
+    st.info(f"Ettől az életkortól kezdve a saját megtakarításod többet ér, mint a £30,000-os fix életbiztosítás.")
+else:
+    col2.warning("A vagyon sosem éri el a biztosítási összeget.")
+
+col3.metric("Összes befizetett biztosítási díj", f"£{ins_total_paid[-1]:,.0f}")
