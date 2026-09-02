@@ -5,10 +5,9 @@ import plotly.graph_objects as go
 # Oldal konfiguráció
 st.set_page_config(page_title="UK Employee & Director Pension Planner", layout="wide", page_icon="🇬🇧")
 
-st.title("🇬🇧 UK Nyugdíj & Vagyon Stratégia: Pótlékokkal kiegészítve")
-st.write("Ez a szimulátor figyelembe veszi az alapbért, a hétvégi pótlékokat és az adóoptimalizált kifizetési stratégiát is.")
+st.title("🇬🇧 UK Nyugdíj & Vagyon Stratégia")
 
-# 🎛️ FELHASZNÁLÓI PROFIL KIVÁLASZTÁSA
+# 🎛️ FELHASZNÁLÓI PROFIL
 st.sidebar.markdown("## ⚙️ Felhasználói Profil")
 user_mode = st.sidebar.radio(
     "Válaszd ki a státuszodat:",
@@ -22,18 +21,18 @@ target_age = 100
 max_work = 75 - current_age
 working_years = st.sidebar.slider("Hány évig dolgozol még (befizetési fázis)?", 0, max_work, 20)
 
-# BEFIZETÉSI LOGIKA MÓDOK SZERINT
+# BEFIZETÉSI LOGIKA
 monthly_contribution_total = 0
 total_annual_gross = 0
 
 if user_mode == "Órabéres alkalmazott":
-    st.sidebar.header("👷 Alapbér beállítások")
+    st.sidebar.header("👷 Alapbér")
     hourly_rate = st.sidebar.number_input("Alap órabér (£)", value=15.0)
-    hours_per_week = st.sidebar.number_input("Heti alap óraszám (hétköznap)", value=37)
+    hours_per_week = st.sidebar.number_input("Heti alap óraszám", value=37)
     
-    st.sidebar.header("🗓️ Hétvégi pótlék (Bonus)")
-    weekend_hours = st.sidebar.number_input("Hétvégi óraszám (alkalmanként)", value=8)
-    weekend_rate = st.sidebar.number_input("Hétvégi emelt órabér (£)", value=22.5, help="Pl. másfélszeres bér esetén 15 * 1.5 = 22.5")
+    st.sidebar.header("🗓️ Hétvégi pótlék")
+    # Itt az egyben megadható pótlék összeg
+    weekend_bonus_per_event = st.sidebar.number_input("Hétvégi pótlék összege (£ / hétvége)", value=180.0, help="Az egy hétvége alatt keresett összes extra bruttó összeg.")
     weekends_per_year = st.sidebar.slider("Hány hétvégét dolgozol egy évben?", 0, 52, 26)
     
     st.sidebar.header("🏹 Nyugdíj hozzájárulás")
@@ -42,14 +41,13 @@ if user_mode == "Órabéres alkalmazott":
     
     # Éves bruttó kiszámítása
     base_annual = hourly_rate * hours_per_week * 52
-    weekend_annual = weekend_hours * weekend_rate * weekends_per_year
+    weekend_annual = weekend_bonus_per_event * weekends_per_year
     total_annual_gross = base_annual + weekend_annual
     
     monthly_gross_salary = total_annual_gross / 12
-    # Nyugdíj befizetés (általában a teljes bruttó után jár)
     monthly_contribution_total = monthly_gross_salary * ((ee_pct + er_pct) / 100)
     
-    st.sidebar.info(f"Havi átlagos bruttó: £{monthly_gross_salary:,.0f}\n(Alap: £{base_annual/12:,.0f} + Pótlék: £{weekend_annual/12:,.0f})")
+    st.sidebar.info(f"Havi átlagos bruttó: £{monthly_gross_salary:,.0f}")
 
 else:
     st.sidebar.header("🏢 Igazgatói adatok")
@@ -72,7 +70,7 @@ initial_sipp = st.sidebar.number_input("Jelenlegi SIPP egyenleg (£)", value=150
 market_return = st.sidebar.slider("Várható éves hozam (%)", 1.0, 12.0, 7.5)
 inflation = st.sidebar.slider("Várható infláció (%)", 0.0, 8.0, 2.5)
 
-# --- ADÓKALKULÁTOR FÜGGVÉNY ---
+# --- ADÓKALKULÁTOR ---
 def calculate_net(gross_m):
     gross_a = gross_m * 12
     pa = 12570
@@ -154,10 +152,3 @@ c1.metric("SIPP csúcsérték", f"£{max(sipp_vals):,.0f}")
 c2.metric("Éves bruttó bér (aktív)", f"£{total_annual_gross:,.0f}")
 c3.metric("Összes kifizetett adó", f"£{total_tax_paid:,.0f}")
 c4.metric("Vagyon 100 évesen", f"£{private_vals[-1]:,.0f}")
-
-if user_mode == "Órabéres alkalmazott":
-    st.info(f"""
-    **Hétvégi pótlék hatása:** 
-    Évente **{weekends_per_year}** hétvégét dolgozol le, ami összesen **£{weekend_annual:,.0f}** extra bruttó jövedelmet jelent. 
-    Ez havonta **£{weekend_annual/12 * ((ee_pct + er_pct)/100):,.0f}** extra befizetést tesz a nyugdíjadba!
-    """)
