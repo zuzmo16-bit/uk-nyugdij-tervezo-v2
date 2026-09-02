@@ -221,3 +221,4 @@ if user_mode == "Céges igazgató / Vállalkozó":
     
     col_dir1, col_dir2 = st.columns(2)
     col_dir1.success(f"💰 **A céged által megspórolt Társasági adó (Corporation Tax):** £{corporation_tax_saved:,.2f}")
+st.plotly_chart(fig, use_container_width=True, theme=None)
