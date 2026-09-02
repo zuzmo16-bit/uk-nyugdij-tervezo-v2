@@ -46,7 +46,6 @@ if user_mode == "Órabéres alkalmazott":
     weekend_a = weekend_bonus * weekends_per_year
     active_annual_gross = base_a + weekend_a
     monthly_contribution_total = (active_annual_gross / 12) * ((ee_pct + er_pct) / 100)
-
 else:
     st.sidebar.header("🏢 Igazgatói befizetés")
     monthly_director_pension = st.sidebar.number_input("Havi céges nyugdíjbefizetés (£)", value=5000)
@@ -134,72 +133,58 @@ for m in range((100 - current_age) * 12 + 1):
     house_wealth.append(current_house)
     holdco_vals.append(current_holdco)
 
-# --- GRAFIKON LÉTREHOZÁSA (GRADIENT STYLE) ---
+# --- GRAFIKON (JAVÍTOTT SZÍNÁTMENET SZINTAXIS) ---
 fig = go.Figure()
 
-# 1. SIPP - Világoskék
+# SIPP - Világoskék
 fig.add_trace(go.Scatter(
     x=ages, y=sipp_vals, 
-    name='SIPP egyenleg (75%)', 
+    name='SIPP (75%)', 
     mode='lines',
     line=dict(color='#87CEEB', width=3),
     fill='tozeroy',
     fillgradient=dict(
         type='vertical',
-        stops=[
-            dict(offset=0, color='rgba(255, 255, 255, 0)'), # Alul fehér/átlátszó
-            dict(offset=1, color='rgba(135, 206, 235, 0.4)') # Felül világoskék
-        ]
+        colorscale=[[0, 'rgba(255, 255, 255, 0)'], [1, 'rgba(135, 206, 235, 0.6)']]
     )
 ))
 
-# 2. HÁZ - Királykék
+# INGATLAN - Királykék
 fig.add_trace(go.Scatter(
     x=ages, y=house_wealth, 
-    name='Ingatlan értéke (25%)', 
+    name='Ingatlan (25%)', 
     mode='lines',
     line=dict(color='royalblue', width=3),
     fill='tozeroy',
     fillgradient=dict(
         type='vertical',
-        stops=[
-            dict(offset=0, color='rgba(255, 255, 255, 0)'), # Alul fehér
-            dict(offset=1, color='rgba(65, 105, 225, 0.4)') # Felül királykék
-        ]
+        colorscale=[[0, 'rgba(255, 255, 255, 0)'], [1, 'rgba(65, 105, 225, 0.6)']]
     )
 ))
 
-# 3. HOLDING - Arany
+# HOLDING - Arany
 fig.add_trace(go.Scatter(
     x=ages, y=holdco_vals, 
-    name='HoldCo (Befektetés)', 
+    name='HoldCo Vagyon', 
     mode='lines',
     line=dict(color='gold', width=4),
     fill='tozeroy',
     fillgradient=dict(
         type='vertical',
-        stops=[
-            dict(offset=0, color='rgba(255, 255, 255, 0)'), # Alul fehér
-            dict(offset=1, color='rgba(255, 215, 0, 0.4)') # Felül arany
-        ]
+        colorscale=[[0, 'rgba(255, 255, 255, 0)'], [1, 'rgba(255, 215, 0, 0.6)']]
     )
 ))
 
 fig.update_layout(
-    xaxis_title="Életkor",
-    yaxis_title="Vagyon (£)",
-    height=650,
-    hovermode="x unified",
-    template="plotly_white",
+    xaxis_title="Életkor", yaxis_title="Vagyon (£)",
+    height=650, hovermode="x unified", template="plotly_white",
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
 # --- KPI-K ---
-if sipp_emptied_age: emptied_str = f"{sipp_emptied_age:.1f} éves"
-else: emptied_str = "Soha"
-
+emptied_str = f"{sipp_emptied_age:.1f} éves" if sipp_emptied_age else "Soha"
 c1, c2, c3, c4 = st.columns(4)
 proj_net = calculate_net(gross_monthly_withdrawal, (state_p_annual/12))
 c1.metric("Várható havi nettó", f"£{proj_net:,.0f}")
