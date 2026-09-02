@@ -5,8 +5,8 @@ import plotly.graph_objects as go
 # Oldal konfiguráció
 st.set_page_config(page_title="UK Employee & Director Pension Planner", layout="wide", page_icon="🇬🇧")
 
-st.title("🇬🇧 UK Nyugdíj & Vagyon Stratégia: Alkalmazott vs. Igazgató")
-st.write("Ez a modell kiszámolja a nyugdíjfelhalmozást alkalmazotti (órabéres) és igazgatói státuszban, majd szimulálja a vagyon kimentését.")
+st.title("🇬🇧 UK Nyugdíj & Vagyon Stratégia: Pótlékokkal kiegészítve")
+st.write("Ez a szimulátor figyelembe veszi az alapbért, a hétvégi pótlékokat és az adóoptimalizált kifizetési stratégiát is.")
 
 # 🎛️ FELHASZNÁLÓI PROFIL KIVÁLASZTÁSA
 st.sidebar.markdown("## ⚙️ Felhasználói Profil")
@@ -24,39 +24,45 @@ working_years = st.sidebar.slider("Hány évig dolgozol még (befizetési fázis
 
 # BEFIZETÉSI LOGIKA MÓDOK SZERINT
 monthly_contribution_total = 0
+total_annual_gross = 0
 
 if user_mode == "Órabéres alkalmazott":
-    st.sidebar.header("👷 Alkalmazotti adatok")
-    hourly_rate = st.sidebar.number_input("Órabér (£)", value=15.0)
-    hours_per_week = st.sidebar.number_input("Heti óraszám", value=40)
+    st.sidebar.header("👷 Alapbér beállítások")
+    hourly_rate = st.sidebar.number_input("Alap órabér (£)", value=15.0)
+    hours_per_week = st.sidebar.number_input("Heti alap óraszám (hétköznap)", value=37)
+    
+    st.sidebar.header("🗓️ Hétvégi pótlék (Bonus)")
+    weekend_hours = st.sidebar.number_input("Hétvégi óraszám (alkalmanként)", value=8)
+    weekend_rate = st.sidebar.number_input("Hétvégi emelt órabér (£)", value=22.5, help="Pl. másfélszeres bér esetén 15 * 1.5 = 22.5")
+    weekends_per_year = st.sidebar.slider("Hány hétvégét dolgozol egy évben?", 0, 52, 26)
+    
+    st.sidebar.header("🏹 Nyugdíj hozzájárulás")
     ee_pct = st.sidebar.slider("Saját hozzájárulás (%)", 0, 20, 5)
     er_pct = st.sidebar.slider("Munkáltatói hozzájárulás (%)", 0, 20, 3)
     
-    # Bruttó bér számítás (52 hétre)
-    annual_gross = hourly_rate * hours_per_week * 52
-    monthly_gross_salary = annual_gross / 12
-    # Összes havi befizetés a nyugdíjba (Munkavállaló + Munkáltató)
+    # Éves bruttó kiszámítása
+    base_annual = hourly_rate * hours_per_week * 52
+    weekend_annual = weekend_hours * weekend_rate * weekends_per_year
+    total_annual_gross = base_annual + weekend_annual
+    
+    monthly_gross_salary = total_annual_gross / 12
+    # Nyugdíj befizetés (általában a teljes bruttó után jár)
     monthly_contribution_total = monthly_gross_salary * ((ee_pct + er_pct) / 100)
     
-    st.sidebar.info(f"Éves bruttó bér: £{annual_gross:,.0f}\nHavi nyugdíj befizetés: £{monthly_contribution_total:,.0f}")
+    st.sidebar.info(f"Havi átlagos bruttó: £{monthly_gross_salary:,.0f}\n(Alap: £{base_annual/12:,.0f} + Pótlék: £{weekend_annual/12:,.0f})")
 
 else:
     st.sidebar.header("🏢 Igazgatói adatok")
     monthly_director_pension = st.sidebar.number_input("Havi CÉGES nyugdíjbefizetés (£)", value=5000)
     monthly_contribution_total = monthly_director_pension
 
-# 🔓 KIFIZETÉSI STRATÉGIA (MELTDOWN)
+# 🔓 KIFIZETÉSI STRATÉGIA
 st.sidebar.markdown("---")
 st.sidebar.header("🔓 Stratégia Időzítése")
 sipp_start_age = st.sidebar.slider("Hány évesen induljon a kifizetés?", 57, 75, 67)
 
 st.sidebar.header("💶 Kifizetési Beállítások")
-gross_monthly_withdrawal = st.sidebar.slider(
-    "Havi bruttó kivét a SIPP-ből (£)", 
-    min_value=1000, max_value=25000, value=4189,
-    help="Havi £4,189-ig maradsz a 20%-os sávban."
-)
-
+gross_monthly_withdrawal = st.sidebar.slider("Havi bruttó kivét a SIPP-ből (£)", 1000, 25000, 4189)
 monthly_living_cost = st.sidebar.slider("Havi nettó megélhetési igény (£)", 500, 10000, 3000)
 
 # 📈 PIACI BEÁLLÍTÁSOK
@@ -72,21 +78,16 @@ def calculate_net(gross_m):
     pa = 12570
     if gross_a > 100000:
         pa = max(0, pa - (gross_a - 100000) / 2)
-    
     taxable = max(0, gross_a - pa)
     tax = 0
     if taxable > 0:
-        # 20% sáv
         band20 = min(taxable, 37700)
         tax += band20 * 0.20
-        # 40% sáv
         if taxable > 37700:
             band40 = min(taxable - 37700, 125140 - 37700)
             tax += band40 * 0.40
-        # 45% sáv
         if taxable > 125140:
-            band45 = taxable - 125140
-            tax += band45 * 0.45
+            tax += (taxable - 125140) * 0.45
     return (gross_a - tax) / 12
 
 # --- SZIMULÁCIÓ ---
@@ -105,11 +106,9 @@ for m in range((target_age - current_age) * 12 + 1):
     current_sipp *= (1 + m_rate)
     current_private *= (1 + m_rate)
     
-    # 1. Befizetési fázis
     if m <= (working_years * 12) and age <= 75:
         current_sipp += monthly_contribution_total
         
-    # 2. Kifizetési fázis
     if age >= sipp_start_age:
         if not pcls_taken:
             lump_sum = current_sipp * 0.25
@@ -123,7 +122,6 @@ for m in range((target_age - current_age) * 12 + 1):
             total_tax_paid += (actual_gross - net_income)
             current_sipp -= actual_gross
             
-            # Megélhetés levonása, maradék befektetése a privát alapba
             if net_income >= monthly_living_cost:
                 current_private += (net_income - monthly_living_cost)
             else:
@@ -133,7 +131,6 @@ for m in range((target_age - current_age) * 12 + 1):
                 sipp_emptied_age = age
                 current_sipp = 0
         else:
-            # SIPP elfogyott, privát tőkéből élünk tovább
             current_private = max(0, current_private - monthly_living_cost)
 
     sipp_vals.append(current_sipp)
@@ -141,7 +138,7 @@ for m in range((target_age - current_age) * 12 + 1):
 
 # --- VIZUALIZÁCIÓ ---
 emptied_text = f"{sipp_emptied_age:.1f} éves" if sipp_emptied_age else "Soha"
-st.subheader(f"📊 {user_mode} stratégia | SIPP ürítés: {emptied_text}")
+st.subheader(f"📊 {user_mode} | SIPP ürítés: {emptied_text}")
 
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=ages, y=sipp_vals, name='SIPP egyenleg', fill='tozeroy', line=dict(color='lightblue')))
@@ -154,13 +151,13 @@ st.plotly_chart(fig, use_container_width=True)
 # KPI-K
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("SIPP csúcsérték", f"£{max(sipp_vals):,.0f}")
-c2.metric("Nettó havi jövedelem (kivét alatt)", f"£{calculate_net(gross_monthly_withdrawal):,.0f}")
-c3.metric("Összes befizetett adó", f"£{total_tax_paid:,.0f}")
+c2.metric("Éves bruttó bér (aktív)", f"£{total_annual_gross:,.0f}")
+c3.metric("Összes kifizetett adó", f"£{total_tax_paid:,.0f}")
 c4.metric("Vagyon 100 évesen", f"£{private_vals[-1]:,.0f}")
 
-st.info(f"""
-**Hogyan működik az alkalmazotti modell?**
-- A program kiszámolja az éves bruttó béredet: **£{hourly_rate*hours_per_week*52:,.0f}**.
-- A nyugdíjba havonta összesen **{ee_pct + er_pct}%** vándorol be, ami **£{monthly_contribution_total:,.0f}**.
-- 57 éves korod után (vagy amikor beállítottad) elindul a 25% kimentése és a havi kifizetés, pont úgy, mint az igazgatói modellnél.
-""")
+if user_mode == "Órabéres alkalmazott":
+    st.info(f"""
+    **Hétvégi pótlék hatása:** 
+    Évente **{weekends_per_year}** hétvégét dolgozol le, ami összesen **£{weekend_annual:,.0f}** extra bruttó jövedelmet jelent. 
+    Ez havonta **£{weekend_annual/12 * ((ee_pct + er_pct)/100):,.0f}** extra befizetést tesz a nyugdíjadba!
+    """)
