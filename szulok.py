@@ -6,9 +6,9 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="Perennis Imperial Planner", layout="wide", page_icon="🛡️")
 
 st.title("🛡️ Perennis: A Birodalmi Vagyonkezelő")
-st.write("A SIPP ürítése és a Tröszt (Perennis tőke) felépítése az Alkotmány 4%-os szabálya mellett.")
+st.write("SIPP Meltdown, Trösztépítés és Nemzetközi Adóoptimalizálás (UK-HU transzfer).")
 
-# --- SIDEBAR: PROFIL ---
+# --- SIDEBAR: PROFIL ÉS IDŐTÁV ---
 st.sidebar.markdown("## ⚙️ Felhasználói Profil")
 user_mode = st.sidebar.radio("Státusz:", ("Órabéres alkalmazott", "Céges igazgató / Vállalkozó"))
 
@@ -18,7 +18,16 @@ current_age = st.sidebar.slider("Jelenlegi életkor", 18, 74, 34)
 working_years = st.sidebar.slider("Hány évig dolgozol még (befizetés)?", 0, 75-current_age, 36)
 death_age = st.sidebar.slider("Várható élethossz (Halálozási kor)", 75, 100, 85)
 
-# --- BEFIZETÉSEK ---
+# --- ÚJ: MAGYARORSZÁGI STRATÉGIA ---
+st.sidebar.markdown("---")
+st.sidebar.header("🇭🇺 Nemzetközi Stratégia")
+enable_hu_move = st.sidebar.checkbox("Hazaköltözés Magyarországra?", value=False)
+if enable_hu_move:
+    hu_move_age = st.sidebar.slider("Hazaköltözés életkora", current_age, 75, 63)
+else:
+    hu_move_age = 999
+
+# --- SIDEBAR: BEFIZETÉSEK ---
 if user_mode == "Órabéres alkalmazott":
     hourly_rate = st.sidebar.number_input("Alap órabér (£)", value=19.14)
     hours = st.sidebar.number_input("Heti óra", value=40)
@@ -33,15 +42,9 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.header("🔑 Birodalmi Stratégia")
 pcls_age = st.sidebar.slider("Házvétel (25% PCLS) életkora", 57, 75, 57)
-drawdown_start_age = st.sidebar.slider("SIPP Meltdown (Kiürítés) kezdete", 57, 75, 57)
-
-# AGRESSZÍV KIÜRÍTÉS (Ezt toljuk a Trösztbe)
-gross_monthly_withdrawal = st.sidebar.slider("Agresszív havi bruttó SIPP kivét (£)", 1000, 25000, 10000, 
-                                             help="A cél a SIPP gyors kiürítése a Tröszt javára.")
-
-# ALKOTMÁNYOS MEGÉLHETÉS (Ezt vesszük ki a Trösztből/SIPP-ből élni)
-monthly_living_cost = st.sidebar.slider("Havi nettó megélhetési igény (£)", 500, 15000, 3500,
-                                         help="Ezt a költést mérjük a 4%-os szabályhoz.")
+drawdown_start_age = st.sidebar.slider("SIPP Meltdown kezdete", 57, 75, 57)
+gross_monthly_withdrawal = st.sidebar.slider("Agresszív havi SIPP kivét (£)", 1000, 25000, 10000)
+monthly_living_cost = st.sidebar.slider("Havi nettó megélhetési igény (£)", 500, 15000, 3500)
 
 st.sidebar.header("🏛️ Állami Nyugdíj")
 state_p_age = st.sidebar.slider("Állami nyugdíjkorhatár", 67, 75, 71)
@@ -77,91 +80,77 @@ pcls_taken, total_tax_paid = False, 0
 for m in range((death_age - current_age) * 12 + 1):
     age = current_age + (m / 12)
     ages.append(age)
-    
     current_sipp *= (1 + m_rate)
     current_trust *= (1 + m_rate)
     current_house *= (1 + (inflation / 100)) ** (1/12)
-
-    # 1. Befizetés (Aktív kor)
-    if m <= (working_years * 12) and age <= 75:
-        current_sipp += monthly_contribution_total
-        
+    if m <= (working_years * 12) and age <= 75: current_sipp += monthly_contribution_total
     st_p_m = (state_p_annual / 12) if age >= state_p_age else 0
-    
-    # 2. Házvétel (25% azonnal a Trösztbe, majd Ingatlanba)
     if age >= pcls_age and not pcls_taken:
-        lump = current_sipp * 0.25
-        current_sipp -= lump
-        current_house = lump 
-        pcls_taken = True
-        
-    # 3. Meltdown és Tröszt építés
+        lump = current_sipp * 0.25; current_sipp -= lump; current_house = lump; pcls_taken = True
     if age >= drawdown_start_age:
         if current_sipp > 0:
-            # SIPP agresszív csapolása
             actual_sipp_g = min(current_sipp, gross_monthly_withdrawal)
             net_income = calculate_net(actual_sipp_g, st_p_m)
             total_tax_paid += ((actual_sipp_g + st_p_m) - net_income)
             current_sipp -= actual_sipp_g
-            
-            # Előbb a megélhetés, a maradék megy a Trösztbe/Holdingba
-            if net_income >= monthly_living_cost:
-                current_trust += (net_income - monthly_living_cost)
-            else:
-                shortfall = monthly_living_cost - net_income
-                current_trust = max(0, current_trust - shortfall)
-            
-            if current_sipp <= 100: current_sipp = 0
+            if net_income >= monthly_living_cost: current_trust += (net_income - monthly_living_cost)
+            else: current_trust = max(0, current_trust - (monthly_living_cost - net_income))
         else:
-            # Ha elfogyott a SIPP, minden a Trösztből jön
             net_income = calculate_net(0, st_p_m)
             current_trust = max(0, current_trust - (monthly_living_cost - net_income))
-
     sipp_vals.append(current_sipp)
     house_wealth.append(current_house)
     trust_vals.append(current_trust)
 
 # --- VIZUALIZÁCIÓ ---
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=ages, y=sipp_vals, name='SIPP (Ürítés alatt)', mode='lines', line=dict(color='#87CEEB', width=2), fill='tozeroy', 
+fig.add_trace(go.Scatter(x=ages, y=sipp_vals, name='SIPP (Ürítés)', mode='lines', line=dict(color='#87CEEB', width=2), fill='tozeroy', 
                          fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(135,206,235,0.3)']])))
 fig.add_trace(go.Scatter(x=ages, y=house_wealth, name='Ingatlan (Perennis bázis)', mode='lines', line=dict(color='royalblue', width=3), fill='tozeroy', 
                          fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(65,105,225,0.4)']])))
-fig.add_trace(go.Scatter(x=ages, y=trust_vals, name='Perennis Tröszt Vagyon', mode='lines', line=dict(color='gold', width=4), fill='tozeroy', 
+fig.add_trace(go.Scatter(x=ages, y=trust_vals, name='Perennis Vagyon', mode='lines', line=dict(color='gold', width=4), fill='tozeroy', 
                          fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(255,215,0,0.5)']])))
-
 fig.update_layout(template="plotly_white", height=600, hovermode="x unified")
 st.plotly_chart(fig, use_container_width=True)
 
-# --- ALKOTMÁNYOSSÁGI VIZSGÁLAT (4% SZABÁLY A TRÖSZTRE) ---
-annual_living_total = monthly_living_cost * 12
-final_trust_val = trust_vals[-1]
-idx_retire = int((drawdown_start_age-current_age)*12)
-if idx_retire < len(trust_vals):
-    current_trust_at_retirement = trust_vals[idx_retire]
-else:
-    current_trust_at_retirement = 0
+# --- ALKOTMÁNYOSSÁGI ÉS IHT KALKULÁCIÓ ---
+total_gross_at_death = sipp_vals[-1] + house_wealth[-1] + trust_vals[-1]
 
-check_val = max(final_trust_val, current_trust_at_retirement)
-withdrawal_rate_trust = (annual_living_total / check_val) * 100 if check_val > 0 else 0
+# IHT Logika a 10 éves szabállyal
+if enable_hu_move:
+    years_since_move = death_age - hu_move_age
+    if years_since_move >= 10:
+        iht_tax = 0  # Kikerült a brit IHT hálóból
+        iht_status = f"🇭🇺 Magyarországi 0% (Kint töltött évek: {years_since_move:.1f})"
+    else:
+        iht_tax = max(0, (total_gross_at_death - 500000) * 0.40)
+        iht_status = f"🇬🇧 Brit 40% (Még csak {years_since_move:.1f} éve élsz kint, a 10 év nem telt le!)"
+else:
+    iht_tax = max(0, (total_gross_at_death - 500000) * 0.40)
+    iht_status = "🇬🇧 Brit 40% (UK lakos)"
+
+# 4% Szabály check
+idx_retire = int((drawdown_start_age-current_age)*12)
+check_val = max(trust_vals[-1], trust_vals[idx_retire] if idx_retire < len(trust_vals) else 0)
+withdrawal_rate_trust = (monthly_living_cost * 12 / check_val) * 100 if check_val > 0 else 0
 
 st.markdown("---")
-st.header(f"📜 Perennis Alkotmányos Mérleg")
+st.header(f"📜 Perennis Alkotmányos és Öröklési Mérleg")
 
-# JAVÍTOTT KPI RÉSZ: Mindenhol st.metric-et használunk a TypeError elkerülésére
 c1, c2, c3, c4 = st.columns(4)
-total_gross_at_death = sipp_vals[-1] + house_wealth[-1] + trust_vals[-1]
-iht_tax = max(0, (total_gross_at_death - 500000) * 0.40)
-
 c1.metric("Össz vagyon halálkor", f"£{total_gross_at_death:,.0f}")
 c2.metric("Tröszt kifizetési ráta", f"{withdrawal_rate_trust:.1f}%")
-c3.metric("Összes kifizetett adó", f"£{total_tax_paid:,.0f}")
-c4.metric("Nettó örökség (Post-2027)", f"£{(total_gross_at_death - iht_tax):,.0f}")
+c3.metric("IHT Adóteher", f"£{iht_tax:,.0f}", help=iht_status)
+c4.metric("Nettó örökség", f"£{(total_gross_at_death - iht_tax):,.0f}")
 
-# Alkotmányos figyelmeztetések a KPI-k alatt
+# --- ÜZENETEK ---
 if withdrawal_rate_trust > 4.0:
-    st.warning(f"⚠️ **ALKOTMÁNYELLENES:** A havi £{monthly_living_cost:,.0f} költésed a Tröszt tőkéjének {withdrawal_rate_trust:.1f}%-a. Ez veszélyezteti a tőkemegőrzés szabályát!")
+    st.warning(f"⚠️ **ALKOTMÁNYELLENES:** A megélhetési rátád ({withdrawal_rate_trust:.1f}%) meghaladja a 4%-os korlátot!")
 else:
-    st.success(f"✅ **ALKOTMÁNYOS:** A megélhetési rátád ({withdrawal_rate_trust:.1f}%) biztosítja a birodalom halhatatlanságát.")
+    st.success(f"✅ **ALKOTMÁNYOS:** A birodalom tőkemegőrzése biztosított.")
 
-st.info(f"**Stratégiai elemzés:** A SIPP-et havi £{gross_monthly_withdrawal:,.0f} bruttóval ürítjük. Az adózott pénzt a Trösztbe mentjük, ahol a vagyon immár a Perennis Alkotmány 4%-os védelme alatt áll.")
+if enable_hu_move:
+    if death_age - hu_move_age >= 10:
+        st.info(f"ℹ️ **Stratégiai siker:** Mivel {hu_move_age} évesen hazaköltöztél és {death_age} évesen haltál meg, a 10 éves 'brit háló' időszaka letelt. Az örökség adómentes Magyarországon.")
+    else:
+        st.error(f"ℹ️ **Adóveszély:** A hazaköltözés óta csak {death_age - hu_move_age:.1f} év telt el. A brit HMRC igényt tart a 40%-os öröklési adóra.")
