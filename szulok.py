@@ -92,7 +92,7 @@ for m in range((death_age - current_age) * 12 + 1):
     if age >= pcls_age and not pcls_taken:
         lump = current_sipp * 0.25
         current_sipp -= lump
-        current_house = lump # A Perennis bázis
+        current_house = lump 
         pcls_taken = True
         
     # 3. Meltdown és Tröszt építés
@@ -148,15 +148,17 @@ withdrawal_rate_trust = (annual_living_total / check_val) * 100 if check_val > 0
 st.markdown("---")
 st.header(f"📜 Perennis Alkotmányos Mérleg")
 
+# JAVÍTOTT KPI RÉSZ: Mindenhol st.metric-et használunk a TypeError elkerülésére
 c1, c2, c3, c4 = st.columns(4)
 total_gross_at_death = sipp_vals[-1] + house_wealth[-1] + trust_vals[-1]
+iht_tax = max(0, (total_gross_at_death - 500000) * 0.40)
+
 c1.metric("Össz vagyon halálkor", f"£{total_gross_at_death:,.0f}")
 c2.metric("Tröszt kifizetési ráta", f"{withdrawal_rate_trust:.1f}%")
-c3.error(f"Összes kifizetett adó", f"£{total_tax_paid:,.0f}")
-# IHT Matek
-iht_tax = max(0, (total_gross_at_death - 500000) * 0.40)
-c4.success(f"Nettó örökség (Post-2027)", f"£{(total_gross_at_death - iht_tax):,.0f}")
+c3.metric("Összes kifizetett adó", f"£{total_tax_paid:,.0f}")
+c4.metric("Nettó örökség (Post-2027)", f"£{(total_gross_at_death - iht_tax):,.0f}")
 
+# Alkotmányos figyelmeztetések a KPI-k alatt
 if withdrawal_rate_trust > 4.0:
     st.warning(f"⚠️ **ALKOTMÁNYELLENES:** A havi £{monthly_living_cost:,.0f} költésed a Tröszt tőkéjének {withdrawal_rate_trust:.1f}%-a. Ez veszélyezteti a tőkemegőrzés szabályát!")
 else:
