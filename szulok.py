@@ -409,7 +409,7 @@ fig.add_trace(go.Scatter(x=ages, y=mortgage_debt_vals, name='Hitel tartozás', m
 # Az elrendezés finomítása: magasság 900px-re növelve, hogy függőlegesen megnyúljon és elkülönüljön
 fig.update_layout(
     template="plotly_white", 
-    height=900, 
+    height=2000, 
     hovermode="x unified", 
     hoverlabel=dict(bgcolor="rgba(255,255,255,0.9)", font_size=12, namelength=-1), 
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
