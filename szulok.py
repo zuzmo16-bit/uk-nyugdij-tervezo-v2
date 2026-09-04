@@ -410,10 +410,10 @@ fig.add_trace(go.Scatter(x=ages, y=mortgage_debt_vals, name='Hitel tartozás', m
 custom_ticks = list(range(0, 1000001, 100000))
 custom_ticks += list(range(5000000, 25000001, 5000000))
 
-# Az elrendezés finomítása: Hibajavított, golyóálló Plotly struktúra
+# Az elrendezés finomítása: szorosabb X tengely feliratok, magasság 900px
 fig.update_layout(
     template="plotly_white", 
-    height=5000, 
+    height=900, 
     hovermode="x unified", 
     hoverlabel=dict(bgcolor="rgba(255,255,255,0.9)", font_size=12, namelength=-1), 
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
@@ -422,25 +422,22 @@ fig.update_layout(
         tickvals=custom_ticks,    
         tickformat=",.0f",        
         title="Vagyon Értéke (£)",
-        gridcolor="rgba(200, 200, 200, 0.4)"
+        gridcolor="rgba(200, 200, 200, 0.4)",
+        showline=True,            # Keretvonal mutatása
+        linewidth=1,
+        linecolor="black"
     ),
     xaxis=dict(
-        title="Életkor (Év)",       # Egyszerű szövegként megadva a hiba elkerülésére
-        tickmode="linear",
-        dtick=5,                  
-        tickangle=0,              
-        tickfont=dict(size=12),   
-        ticklen=4,                # Szorosan a tengelyhez húzzuk a számokat
-        tickpad=2,                
-        showgrid=True,            
-        gridcolor="rgba(200, 200, 200, 0.2)"
+        title=dict(text="Életkor (Év)", standoff=10), # Közelebb hozza a főcímet
+        showline=True,            # Keretvonal mutatása az X tengelyen
+        linewidth=1,
+        linecolor="black",
+        tickangle=0,              # Vízszintesen tartja a számokat
+        tickfont=dict(size=12),   # Jól olvasható betűméret
+        mirror=True               # Golyóálló tengelyrögzítés
     ),
-    margin=dict(b=40, t=40, l=60, r=40)
+    margin=dict(b=40, t=40, l=60, r=40) # Összehúzza az alsó felesleges fehér margót (b=bottom)
 )
-
-# Külön állítjuk be a felirat távolságát, hogy a régi Plotly verziókon se akadjon ki
-fig.update_xaxes(title_standoff=10)
-
 st.plotly_chart(fig, use_container_width=True)
 
 # --- KPI MÉRLEG (2027-ES LABOR REFORM ÉS HU ARBITRÁZS SZERINTI JAVÍTÁS) ---
