@@ -410,39 +410,34 @@ fig.add_trace(go.Scatter(x=ages, y=mortgage_debt_vals, name='Hitel tartozás', m
 custom_ticks = list(range(0, 1000001, 100000))
 custom_ticks += list(range(5000000, 25000001, 5000000))
 
-# 1. Alap elrendezés beállítása (Csak a legszükségesebb paraméterekkel)
+# Az elrendezés finomítása: szorosabb X tengely feliratok, magasság 900px
 fig.update_layout(
     template="plotly_white", 
     height=900, 
     hovermode="x unified", 
     hoverlabel=dict(bgcolor="rgba(255,255,255,0.9)", font_size=12, namelength=-1), 
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
-    margin=dict(b=50, t=40, l=60, r=40)
+    yaxis=dict(
+        tickmode="array",         
+        tickvals=custom_ticks,    
+        tickformat=",.0f",        
+        title="Vagyon Értéke (£)",
+        gridcolor="rgba(200, 200, 200, 0.4)",
+        showline=True,            # Keretvonal mutatása
+        linewidth=1,
+        linecolor="black"
+    ),
+    xaxis=dict(
+        title=dict(text="Életkor (Év)", standoff=10), # Közelebb hozza a főcímet
+        showline=True,            # Keretvonal mutatása az X tengelyen
+        linewidth=1,
+        linecolor="black",
+        tickangle=0,              # Vízszintesen tartja a számokat
+        tickfont=dict(size=12),   # Jól olvasható betűméret
+        mirror=True               # Golyóálló tengelyrögzítés
+    ),
+    margin=dict(b=40, t=40, l=60, r=40) # Összehúzza az alsó felesleges fehér margót (b=bottom)
 )
-
-# 2. Y tengely golyóálló konfigurációja
-fig.update_yaxes(
-    title_text="Vagyon Értéke (£)",
-    tickmode="array",         
-    tickvals=custom_ticks,    
-    tickformat=",.0f",
-    gridcolor="rgba(200, 200, 200, 0.4)"
-)
-
-# 3. X tengely konfigurációja - Itt húzzuk fel a számokat szorosan a pad- és len beállításokkal
-fig.update_xaxes(
-    title_text="Életkor (Év)",
-    title_standoff=10,
-    tickmode="linear",
-    dtick=5,
-    tickangle=0,
-    tickfont=dict(size=12),
-    ticklen=4,                # Rövid tüskék
-    tickpad=2,                # Mindössze 2 pixel távolság (felrántja a számokat)
-    showgrid=True,
-    gridcolor="rgba(200, 200, 200, 0.2)"
-)
-
 st.plotly_chart(fig, use_container_width=True)
 
 # --- KPI MÉRLEG (2027-ES LABOR REFORM ÉS HU ARBITRÁZS SZERINTI JAVÍTÁS) ---
