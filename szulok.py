@@ -415,7 +415,7 @@ custom_ticks += list(range(5000000, 25000001, 5000000))
 # Az elrendezés finomítása: magasság 900px, egyedi Y tengely sűrűséggel az alsó sávban
 fig.update_layout(
     template="plotly_white", 
-    height=20000, 
+    height=10000, 
     hovermode="x unified", 
     hoverlabel=dict(bgcolor="rgba(255,255,255,0.9)", font_size=12, namelength=-1), 
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
