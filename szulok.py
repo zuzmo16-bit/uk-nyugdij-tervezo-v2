@@ -410,7 +410,7 @@ fig.add_trace(go.Scatter(x=ages, y=mortgage_debt_vals, name='Hitel tartozás', m
 custom_ticks = list(range(0, 1000001, 100000))
 custom_ticks += list(range(5000000, 25000001, 5000000))
 
-# Az elrendezés finomítása: A számfeliratok szorosan a tengelyhez húzása
+# Az elrendezés finomítása: Hibajavított, golyóálló Plotly struktúra
 fig.update_layout(
     template="plotly_white", 
     height=5000, 
@@ -425,23 +425,23 @@ fig.update_layout(
         gridcolor="rgba(200, 200, 200, 0.4)"
     ),
     xaxis=dict(
-        title=dict(text="Életkor (Év)", standoff=5), # A főcímet is közelebb hozzuk
+        title="Életkor (Év)",       # Egyszerű szövegként megadva a hiba elkerülésére
         tickmode="linear",
-        dtick=5,                  # 5 évente jelenjen meg szám (43, 48, 53...)
+        dtick=5,                  
         tickangle=0,              
         tickfont=dict(size=12),   
-        
-        # --- ITT HÚZZUK A SZÁMOKAT A TENGELYHEZ ---
-        ticklen=4,                # A kis jelölőtüskék hossza (rövidre véve)
-        tickpad=2,                # A számok távolsága a tüskétől MINDÖSSZE 2 pixel!
-        
-        showgrid=True,            # Függőleges segédvonalak bekapcsolása a pontosabb leolvasásért
+        ticklen=4,                # Szorosan a tengelyhez húzzuk a számokat
+        tickpad=2,                
+        showgrid=True,            
         gridcolor="rgba(200, 200, 200, 0.2)"
     ),
-    margin=dict(b=30, t=40, l=60, r=40) # Az alsó margót is szűkre szabjuk
+    margin=dict(b=40, t=40, l=60, r=40)
 )
-st.plotly_chart(fig, use_container_width=True)
 
+# Külön állítjuk be a felirat távolságát, hogy a régi Plotly verziókon se akadjon ki
+fig.update_xaxes(title_standoff=10)
+
+st.plotly_chart(fig, use_container_width=True)
 
 # --- KPI MÉRLEG (2027-ES LABOR REFORM ÉS HU ARBITRÁZS SZERINTI JAVÍTÁS) ---
 st.markdown("---")
