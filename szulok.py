@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="Perennis Imperial Master", layout="wide", page_icon="🛡️")
 
 st.title("🛡️ Perennis: A Birodalmi Vagyonkezelő (Master Edition)")
-st.write("Javított hitel- és ISA-dinamika számítás az alkalmazotti profilhoz.")
+st.write("Alkalmazotti profil: SIPP akkumuláció 57-ig, majd ISA & Holding transzfer.")
 
 # --- SIDEBAR: FELHASZNÁLÓI PROFIL ---
 st.sidebar.markdown("## ⚙️ Felhasználói Profil")
@@ -24,7 +24,7 @@ else:
     current_age = st.sidebar.slider("Jelenlegi életkor", 18, 74, 31)
 death_age = st.sidebar.slider("Várható élethossz", 75, 100, 85)
 
-# --- ALAPVÁLTOZÓK INICIALIZÁLÁSA (Fixálva) ---
+# --- INICIALIZÁLÁS ---
 start_sipp = 15000
 start_aviva = 5000
 start_trust = 0
@@ -57,7 +57,7 @@ if user_mode == "Órabéres alkalmazott":
     
     st.sidebar.header("🏹 Saját SIPP (Vanguard)")
     start_sipp = st.sidebar.number_input("Jelenlegi SIPP egyenleg (£)", value=15000)
-    monthly_sipp_user_net = st.sidebar.number_input("Havi saját befizetés (Nettó £)", value=100)
+    monthly_sipp_user_net = st.sidebar.number_input("Havi saját befizetés (Nettó £)", value=100, help="Ezt az összeget tisztesz félre havonta. +25% állami bónusz jár rá.")
     
     st.sidebar.header("🏠 Ingatlanhitel Paraméterek")
     target_house_value = st.sidebar.number_input("Tervezett ingatlanérték (£)", value=340000)
@@ -101,6 +101,12 @@ st.sidebar.header("📈 Ekonomiai Beállítások")
 market_return = st.sidebar.slider("Vanguard éves hozam (%)", 1.0, 15.0, 7.5)
 inflation = st.sidebar.slider("Éves infláció (%)", 0.0, 8.0, 2.5)
 
+# --- HAZAKÖLTÖZÉS ---
+st.sidebar.markdown("---")
+st.sidebar.header("🇭🇺 Nemzetközi Stratégia")
+enable_hu_move = st.sidebar.checkbox("Hazaköltözés Magyarországra?", value=(user_mode == "Nemzetközi Kivonulás (UK-HU Transzfer)"))
+hu_move_age = st.sidebar.slider("Hazaköltözés életkora", 18, 90, 63 if not enable_hu_move else current_age)
+
 # --- ADÓ ÉS MATEK ---
 def calculate_net(sipp_m, state_m):
     total_a = (sipp_m + state_m) * 12
@@ -120,13 +126,7 @@ if user_mode == "Órabéres alkalmazott":
     m_aviva_rate = ( (1 + aviva_return/100) / (1 + inflation/100) )**(1/12) - 1
 else: m_aviva_rate = 0
 
-# --- HAZAKÖLTÖZÉS ---
-st.sidebar.markdown("---")
-st.sidebar.header("🇭🇺 Nemzetközi Stratégia")
-enable_hu_move = st.sidebar.checkbox("Hazaköltözés Magyarországra?", value=(user_mode == "Nemzetközi Kivonulás (UK-HU Transzfer)"))
-hu_move_age = st.sidebar.slider("Hazaköltözés életkora", 18, 90, 63 if not enable_hu_move else current_age)
-
-# --- SSAS LOANBACK (Csak nemzetközi módban) ---
+# --- SSAS LOANBACK (Csak nemzetközi) ---
 enable_ssas_loan = False
 loan_amount = 0
 if user_mode == "Nemzetközi Kivonulás (UK-HU Transzfer)":
@@ -136,13 +136,17 @@ if user_mode == "Nemzetközi Kivonulás (UK-HU Transzfer)":
     loan_amount = (start_sipp * 0.5) if enable_ssas_loan else 0
 
 # --- SZIMULÁCIÓ ---
-ages, sipp_vals, aviva_vals, uk_house_vals, trust_vals, mortgage_debt_vals = [], [], [], [], [], []
-current_sipp, current_aviva, current_trust, current_uk_house, current_hu_base = start_sipp, start_aviva, start_trust, 0, 0
+ages, sipp_vals, aviva_vals, hu_base_vals, uk_house_vals, isa_vals, holding_vals, mortgage_debt_vals = [], [], [], [], [], [], [], []
+current_sipp, current_aviva, current_isa, current_holding, current_uk_house, current_hu_base = start_sipp, start_aviva, 0, 0, 0, 0
 current_mortgage_debt = 0
 loan_balance = loan_amount
 pcls_taken, total_tax_paid, total_gross_income_drawdown = False, 0, 0
 mortgage_payment = 0
 final_pcls_val = 0
+
+if enable_ssas_loan:
+    current_sipp -= loan_amount
+    current_hu_base = loan_amount 
 
 for m in range(int((death_age - current_age) * 12) + 1):
     age = current_age + (m / 12)
@@ -150,21 +154,29 @@ for m in range(int((death_age - current_age) * 12) + 1):
     
     current_sipp *= (1 + m_market_rate)
     current_aviva *= (1 + m_aviva_rate)
-    current_trust *= (1 + m_market_rate)
+    current_isa *= (1 + m_market_rate)
+    current_holding *= (1 + m_market_rate)
     current_uk_house *= (1 + (inflation / 100)) ** (1/12)
+    current_hu_base *= (1 + (inflation / 100)) ** (1/12)
 
-    # 1. Befizetési szakasz
+    # 1. Befizetési szakasz (57 éves korig CSAK SIPP)
     if m <= (working_years * 12):
         current_aviva += monthly_aviva_total
         if user_mode == "Órabéres alkalmazott":
-            current_sipp += (monthly_sipp_user_net * 1.25)
+            # Amíg nem indul el a meltdown, minden megtakarítás a SIPP-be megy a 25% bónusz miatt
             if age < drawdown_start_age:
-                salary_net = calculate_net(active_annual_gross / 12, 0)
-                living_now = 3500 / ((1 + (inflation/100))**(m/12))
-                surplus = salary_net - living_now - (mortgage_payment / ((1 + (inflation/100))**(m/12)))
-                if surplus > 0: current_trust += surplus
+                current_sipp += (monthly_sipp_user_net * 1.25)
+        elif user_mode == "Céges igazgató / Vállalkozó":
+            current_sipp += monthly_sipp_director
 
-    # 2. Házvétel (PCLS)
+    # 2. SSAS Törlesztés (Nemzetközi mód)
+    if enable_ssas_loan and loan_balance > 0 and m <= 60:
+        repayment = loan_amount / 60
+        interest = loan_balance * 0.005 
+        current_sipp += (repayment + interest)
+        loan_balance -= repayment
+
+    # 3. 25% PCLS (Házvétel)
     if not pcls_taken and age >= pcls_age:
         total_p = current_sipp + current_aviva
         pcls_val = total_p * 0.25
@@ -181,9 +193,11 @@ for m in range(int((death_age - current_age) * 12) + 1):
                 mortgage_payment = current_mortgage_debt * (r * (1 + r)**n) / ((1 + r)**n - 1)
             elif n > 0:
                 mortgage_payment = current_mortgage_debt / n
+        else:
+            current_uk_house = pcls_val
         pcls_taken = True
         
-    # 3. Hitel törlesztés
+    # 4. Hitel törlesztés
     adj_mortgage_payment = 0
     if current_mortgage_debt > 0:
         interest_m = current_mortgage_debt * (mortgage_interest / 100 / 12)
@@ -194,7 +208,7 @@ for m in range(int((death_age - current_age) * 12) + 1):
     
     st_p_m = (state_p_annual / 12) if age >= state_p_age else 0
     
-    # 4. Meltdown & Megélhetés
+    # 5. Meltdown & Holding/ISA logikai elosztás
     if age >= drawdown_start_age:
         total_pension = current_sipp + current_aviva
         if total_pension > 0:
@@ -207,19 +221,40 @@ for m in range(int((death_age - current_age) * 12) + 1):
             current_sipp -= actual_gross * ratio
             current_aviva -= actual_gross * (1 - ratio)
             
-            net_after_mortgage = total_net - adj_mortgage_payment
-            if net_after_mortgage >= monthly_living_cost:
-                current_trust += (net_after_mortgage - monthly_living_cost)
+            net_after_essentials = total_net - adj_mortgage_payment - monthly_living_cost
+            
+            if net_after_essentials > 0:
+                # ISA Limit: max £20k/év = £1666/hó
+                isa_contribution = min(net_after_essentials, 1666)
+                current_isa += isa_contribution
+                # Minden e feletti rész megy a Holdingba
+                current_holding += (net_after_essentials - isa_contribution)
             else:
-                current_trust = max(0, current_trust - (monthly_living_cost - net_after_mortgage))
+                # Ha hiány van, előbb a Holdingból, aztán az ISA-ból pótoljuk
+                shortfall = abs(net_after_essentials)
+                if current_holding >= shortfall:
+                    current_holding -= shortfall
+                else:
+                    shortfall -= current_holding
+                    current_holding = 0
+                    current_isa = max(0, current_isa - shortfall)
         else:
             net_state = calculate_net(0, st_p_m)
-            current_trust = max(0, current_trust - (monthly_living_cost + adj_mortgage_payment - net_state))
+            net_after_essentials = net_state - adj_mortgage_payment - monthly_living_cost
+            shortfall = abs(net_after_essentials)
+            if current_holding >= shortfall:
+                current_holding -= shortfall
+            else:
+                shortfall -= current_holding
+                current_holding = 0
+                current_isa = max(0, current_isa - shortfall)
 
-    sipp_vals.append(current_sipp)
+    sipp_vals.append(current_sipp + loan_balance)
     aviva_vals.append(current_aviva)
+    hu_base_vals.append(current_hu_base)
     uk_house_vals.append(current_uk_house)
-    trust_vals.append(current_trust)
+    isa_vals.append(current_isa)
+    holding_vals.append(current_holding)
     mortgage_debt_vals.append(current_mortgage_debt)
 
 # --- VIZUALIZÁCIÓ ---
@@ -227,16 +262,20 @@ fig = go.Figure()
 fig.add_trace(go.Scatter(x=ages, y=sipp_vals, name='Saját SIPP', mode='lines', line=dict(color='#87CEEB', width=2), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(135,206,235,0.3)']])))
 if user_mode == "Órabéres alkalmazott":
     fig.add_trace(go.Scatter(x=ages, y=aviva_vals, name='AVIVA (Workplace)', mode='lines', line=dict(color='#40E0D0', width=2), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(64,224,208,0.3)']])))
+
 fig.add_trace(go.Scatter(x=ages, y=uk_house_vals, name='Saját Ingatlan', mode='lines', line=dict(color='royalblue', width=3), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(65,105,225,0.4)']])))
 if max(mortgage_debt_vals) > 0:
     fig.add_trace(go.Scatter(x=ages, y=mortgage_debt_vals, name='Jelzálog tartozás', mode='lines', line=dict(color='firebrick', width=2, dash='dash')))
-fig.add_trace(go.Scatter(x=ages, y=trust_vals, name='ISA Vagyon', mode='lines', line=dict(color='gold', width=4), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(255,215,0,0.5)']])))
+
+fig.add_trace(go.Scatter(x=ages, y=isa_vals, name='ISA Vagyon', mode='lines', line=dict(color='gold', width=3), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(255,215,0,0.4)']])))
+fig.add_trace(go.Scatter(x=ages, y=holding_vals, name='Holding (Surplus)', mode='lines', line=dict(color='#C0C0C0', width=3), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(192,192,192,0.4)']])))
 
 fig.update_layout(template="plotly_white", height=650, hovermode="x unified", legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01))
 st.plotly_chart(fig, use_container_width=True)
 
 # --- KPI MÉRLEG ---
-total_at_death = sipp_vals[-1] + aviva_vals[-1] + uk_house_vals[-1] + trust_vals[-1] - mortgage_debt_vals[-1]
+st.markdown("---")
+total_at_death = sipp_vals[-1] + aviva_vals[-1] + uk_house_vals[-1] + isa_vals[-1] + holding_vals[-1] - mortgage_debt_vals[-1]
 st.header(f"📜 Perennis Birodalmi Mérleg ({death_age} évesen)")
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Bruttó Összvagyon", f"£{total_at_death:,.0f}")
@@ -245,8 +284,10 @@ eff_rate = (total_tax_paid / total_gross_income_drawdown * 100) if total_gross_i
 c3.metric("Effektív adókulcs", f"{eff_rate:.1f}%")
 c4.metric("Nettó Örökség", f"£{(total_at_death - max(0, (total_at_death-500000)*0.4)):,.0f}")
 
-with st.expander("🔍 Stratégiai Elemzés és Hitel Adatok"):
-    if user_mode == "Órabéres alkalmazott":
-        st.write(f"- 🏠 **Hitelkeret (4.5x jövedelem):** £{(active_annual_gross + partner_income)*4.5:,.0f}")
-        st.write(f"- 💸 **Havi törlesztő (induló):** £{mortgage_payment:,.0f}")
-    st.write(f"- 🕒 **Hitel kifutása:** {pcls_age + mortgage_term} éves korra.")
+with st.expander("🔍 Stratégiai Elemzés (Meltdown fázis)"):
+    proj_net = calculate_net(gross_sipp_meltdown, state_p_annual/12)
+    st.write(f"- 💰 **Tervezett havi nettó:** £{proj_net:,.0f}")
+    st.write(f"- 🛒 **Megélhetés (Zsebbe):** £{monthly_living_cost:,.0f}")
+    surplus = proj_net - mortgage_payment - monthly_living_cost
+    if surplus > 0:
+        st.write(f"- 📈 **Havi megtakarítás:** £{surplus:,.0f} (Ebből £{min(surplus, 1666):,.0f} megy ISA-ba, a maradék Holdingba)")
