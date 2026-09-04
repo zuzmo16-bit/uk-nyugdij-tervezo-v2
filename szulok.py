@@ -406,7 +406,13 @@ fig.add_trace(go.Scatter(x=ages, y=isa_vals, name='ISA Vagyon (Közös)', mode='
 fig.add_trace(go.Scatter(x=ages, y=holding_vals, name='Magyar Holding (Gyár + Vanguard)' if user_mode == "Céges igazgató / Vállalkozó" else 'Magyar Holding', mode='lines', line=dict(color='#C0C0C0', width=4), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(192,192,192,0.5)']])))
 fig.add_trace(go.Scatter(x=ages, y=mortgage_debt_vals, name='Hitel tartozás', mode='lines', line=dict(color='firebrick', width=2, dash='dash')))
 
-# Az elrendezés finomítása: magasság 900px-re növelve, hogy függőlegesen megnyúljon és elkülönüljön
+# --- TENGELY JELÖLÉSEK (TICKVALUES) GENERÁLÁSA ---
+# 0-tól 1 millióig 100 ezer fontonként lépkedünk
+custom_ticks = list(range(0, 1000001, 100000))
+# 1 milliótól 25 millióig 5 millió fontonként lépkedünk, hogy a felső rész tiszta maradjon
+custom_ticks += list(range(5000000, 25000001, 5000000))
+
+# Az elrendezés finomítása: magasság 900px, egyedi Y tengely sűrűséggel az alsó sávban
 fig.update_layout(
     template="plotly_white", 
     height=20000, 
@@ -414,8 +420,11 @@ fig.update_layout(
     hoverlabel=dict(bgcolor="rgba(255,255,255,0.9)", font_size=12, namelength=-1), 
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
     yaxis=dict(
-        tickformat=",.0f",  # Szép, ezres tagozású számformátum az Y tengelyen
-        title="Vagyon Értéke (£)"
+        tickmode="array",         # Manuális tömb módot kapcsolunk be
+        tickvals=custom_ticks,    # Beadjuk a fenti egyedi listánkat
+        tickformat=",.0f",        # Ezres elválasztó formázás
+        title="Vagyon Értéke (£)",
+        gridcolor="rgba(200, 200, 200, 0.4)" # Lágy szürke segédvonalak a jobb olvashatóságért
     ),
     xaxis=dict(title="Életkor (Év)")
 )
