@@ -57,7 +57,6 @@ if user_mode == "Órabéres alkalmazott":
     ee_pct = st.sidebar.slider("Saját hozzájárulás (%)", 0, 20, 4)
     er_pct = st.sidebar.slider("Munkáltatói hozzájárulás (%)", 0, 20, 4)
     aviva_return = st.sidebar.slider("AVIVA várható éves hozama (%)", 1.0, 10.0, 4.5)
-    # Ha partner van, feltételezzük, hogy ő is ugyanennyit (arányosan) tesz félre
     multiplier = 2 if partner_mode else 1
     monthly_aviva_total = (active_annual_gross / 12) * ((ee_pct + er_pct) / 100) * multiplier
 
@@ -69,9 +68,44 @@ if user_mode == "Órabéres alkalmazott":
 elif user_mode == "Céges igazgató / Vállalkozó":
     st.sidebar.header("🏢 Vállalkozói adatok")
     start_sipp = st.sidebar.number_input("Jelenlegi SIPP egyenleg (£)", value=15000)
-    monthly_sipp_director = st.sidebar.number_input("Havi céges SIPP befizetés (£)", value=5000)
-    working_years = st.sidebar.slider("Hány évig fizetsz még be a SIPP-be?", 0, int(75-current_age), 20)
-    active_annual_gross = 12570 
+    
+    st.sidebar.markdown("### 💰 Céges Cash-Flow & Extrakció")
+    company_annual_revenue = st.sidebar.number_input("Cég éves nettó árbevétele (£)", value=120000)
+    company_expenses = st.sidebar.number_input("Egyéb céges költségek (Éves £)", value=15000)
+    
+    director_salary = st.sidebar.number_input("Igazgatói éves bér (Optimalizált: £12,570)", value=12570)
+    monthly_sipp_director = st.sidebar.number_input("Havi céges SIPP hozzájárulás (£)", value=3000)
+    
+    # Társasági adó alap számítás (Árbevétel - Költségek - Bér - Céges SIPP)
+    annual_corporate_sipp = monthly_sipp_director * 12
+    corporate_profit_before_tax = max(0, company_annual_revenue - company_expenses - director_salary - annual_corporate_sipp)
+    
+    # UK Corporation Tax sávok (19% - 25% marginal rate)
+    if corporate_profit_before_tax <= 50000:
+        corp_tax = corporate_profit_before_tax * 0.19
+    elif corporate_profit_before_tax <= 250000:
+        corp_tax = (50000 * 0.19) + ((corporate_profit_before_tax - 50000) * 0.265)
+    else:
+        corp_tax = corporate_profit_before_tax * 0.25
+        
+    retained_earnings = corporate_profit_before_tax - corp_tax
+    
+    # Osztalék politika a megmaradt profitból
+    max_dividend_possible = retained_earnings
+    annual_dividend_taken = st.sidebar.slider("Kivett éves osztalék (£)", 0, int(max_dividend_possible), int(max_dividend_possible * 0.7))
+    
+    st.sidebar.info(f"📊 Társasági adó: £{corp_tax:,.0f} | Cégben maradó profit: £{(retained_earnings - annual_dividend_taken):,.0f}")
+
+    # Aktív éves bruttó meghatározása a meglévő logikák számára
+    active_annual_gross = director_salary + annual_dividend_taken
+    
+    st.sidebar.header("👫 Családi Szövetség (Cégvezető)")
+    partner_mode = st.sidebar.checkbox("Partner bevonása (Pl. Osztalék megosztás)", value=False)
+    if partner_mode:
+        partner_income = st.sidebar.number_input("Partner külön jövedelme / Osztaléka (£)", value=12570)
+    
+    max_loan_limit = (active_annual_gross + partner_income) * 4.5
+    working_years = st.sidebar.slider("Hány évig fut még aktívan a cég?", 0, int(75-current_age), 20)
 
 # --- SIPP & KIFIZETÉS ---
 st.sidebar.markdown("---")
@@ -104,10 +138,8 @@ mortgage_term = st.sidebar.slider("Hitel futamideje (év)", 5, 25, 15)
 st.sidebar.header("📈 Ekonomiai Beállítások")
 market_return = st.sidebar.slider("Vanguard éves hozam (%)", 1.0, 15.0, st.session_state.market_return)
 inflation = st.sidebar.slider("Éves infláció (%)", 0.0, 8.0, st.session_state.inflation)
-
 # --- ADÓKALKULÁTOR (Házastársi logikával) ---
 def calculate_net_household(gross_m, partner_active):
-    # Ha ketten vannak, a jövedelmet kettéosztjuk (optimális eset), kiszámoljuk az adót egy főre, majd duplázzuk
     num_people = 2 if partner_active else 1
     gross_per_person_a = (gross_m / num_people) * 12
     
@@ -137,7 +169,6 @@ current_mortgage_debt, total_tax_paid, total_gross_drawdown, mortgage_payment = 
 initial_mortgage_payment, sipp_at_retirement, final_pcls_val = 0, 0, 0
 pcls_taken = False
 
-# Ha partner van, duplázzuk az induló nyugdíjvagyont (feltételezve, hogy hasonlóan állnak)
 if partner_mode:
     current_sipp *= 2
     current_aviva *= 2
@@ -157,7 +188,7 @@ for m in range(int((death_age - current_age) * 12) + 1):
         if user_mode == "Órabéres alkalmazott":
             if age < drawdown_start_age: current_sipp += (monthly_sipp_user_net * 1.25 * multiplier)
         elif user_mode == "Céges igazgató / Vállalkozó":
-            current_sipp += 5000
+            current_sipp += monthly_sipp_director
 
     if not pcls_taken and age >= pcls_age:
         total_p = current_sipp + current_aviva
@@ -195,7 +226,6 @@ for m in range(int((death_age - current_age) * 12) + 1):
             current_sipp = max(0, current_sipp - (actual_gross * ratio))
             current_aviva = max(0, current_aviva - (actual_gross * (1 - ratio)))
             
-            # Cash-flow: User csak a saját részét fizeti (mortgage/2)
             user_mortgage_share = adj_mortgage_payment / (2 if partner_mode else 1)
             net_after_essentials = total_net - adj_mortgage_payment - monthly_living_cost
             if net_after_essentials > 0:
