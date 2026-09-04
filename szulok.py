@@ -5,8 +5,8 @@ import plotly.graph_objects as go
 # --- OLDAL KONFIGURÁCIÓ ---
 st.set_page_config(page_title="Perennis Imperial Master", layout="wide", page_icon="🛡️")
 
-st.title("🛡️ Perennis: A Birodalmi Vagyonkezelő (Master Edition v2.4)")
-st.write("Javított 3-színű adó-heatmap és prioritásos vagyonfelélési stratégia.")
+st.title("🛡️ Perennis: A Birodalmi Vagyonkezelő (Master Edition v2.5)")
+st.write("Javított vizuális hover-effekt és hitel-kalkuláció.")
 
 # --- SESSION STATE ---
 if 'market_return' not in st.session_state: st.session_state.market_return = 7.5
@@ -75,7 +75,6 @@ pcls_age = st.sidebar.slider("Házvétel (25% PCLS) életkora", 57, 75, 58)
 drawdown_start_age = st.sidebar.slider("Havi kifizetés kezdete", 57, 75, 72)
 gross_sipp_meltdown = st.sidebar.slider("Havi bruttó SIPP+AVIVA kivét (£)", 0, 25000, 4189)
 
-# --- JAVÍTOTT ADÓ-HEATMAP (3 SZÍN) ---
 state_p_monthly = 11502 / 12
 total_projected_gross = gross_sipp_meltdown + state_p_monthly
 
@@ -120,6 +119,7 @@ else: m_aviva_rate = 0
 ages, sipp_vals, aviva_vals, house_vals, isa_vals, holding_vals, mortgage_debt_vals = [], [], [], [], [], [], []
 current_sipp, current_aviva, current_isa, current_holding, current_uk_house = start_sipp, start_aviva, 0, 0, 0
 current_mortgage_debt, total_tax_paid, total_gross_drawdown, mortgage_payment = 0, 0, 0, 0
+initial_mortgage_payment = 0 # ÚJ: Az induló törlesztő mentéséhez
 pcls_taken = False
 sipp_at_retirement = 0
 
@@ -149,7 +149,11 @@ for m in range(int((death_age - current_age) * 12) + 1):
         current_uk_house = target_house_value
         current_mortgage_debt = max(0, target_house_value - pcls_val)
         r, n = (mortgage_interest / 100) / 12, mortgage_term * 12
-        mortgage_payment = current_mortgage_debt * (r * (1 + r)**n) / ((1 + r)**n - 1) if r > 0 else current_mortgage_debt / n
+        if r > 0 and n > 0:
+            mortgage_payment = current_mortgage_debt * (r * (1 + r)**n) / ((1 + r)**n - 1)
+        elif n > 0:
+            mortgage_payment = current_mortgage_debt / n
+        initial_mortgage_payment = mortgage_payment # Elmentjük az induló értéket
         pcls_taken = True
         
     adj_mortgage_payment = 0
@@ -173,14 +177,12 @@ for m in range(int((death_age - current_age) * 12) + 1):
             current_sipp -= actual_gross * ratio
             current_aviva -= actual_gross * (1 - ratio)
             
-            # Maradvány kezelés: Hitel -> Living -> ISA (£1666/hó) -> Holding
             net_after_essentials = total_net - adj_mortgage_payment - monthly_living_cost
             if net_after_essentials > 0:
                 isa_in = min(net_after_essentials, 1666)
                 current_isa += isa_in
                 current_holding += (net_after_essentials - isa_in)
             else:
-                # HIÁNY: ISA ürül először (prioritásos felélés)!
                 shortfall = abs(net_after_essentials)
                 if current_isa >= shortfall: current_isa -= shortfall
                 else:
@@ -203,7 +205,7 @@ for m in range(int((death_age - current_age) * 12) + 1):
     holding_vals.append(current_holding)
     mortgage_debt_vals.append(current_mortgage_debt)
 
-# --- VIZUALIZÁCIÓ ---
+# --- VIZUALIZÁCIÓ (JAVÍTOTT HOVER) ---
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=ages, y=sipp_vals, name='Saját SIPP', mode='lines', line=dict(color='#87CEEB', width=2), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(135,206,235,0.3)']])))
 fig.add_trace(go.Scatter(x=ages, y=aviva_vals, name='AVIVA', mode='lines', line=dict(color='#40E0D0', width=2), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(64,224,208,0.3)']])))
@@ -211,7 +213,9 @@ fig.add_trace(go.Scatter(x=ages, y=house_vals, name='Saját Ingatlan', mode='lin
 fig.add_trace(go.Scatter(x=ages, y=isa_vals, name='ISA Vagyon (Elsőbbségi felélés)', mode='lines', line=dict(color='gold', width=3), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(255,215,0,0.4)']])))
 fig.add_trace(go.Scatter(x=ages, y=holding_vals, name='Magyar Holding (Birodalmi tőke)', mode='lines', line=dict(color='#C0C0C0', width=4), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(192,192,192,0.5)']])))
 fig.add_trace(go.Scatter(x=ages, y=mortgage_debt_vals, name='Hitel tartozás', mode='lines', line=dict(color='firebrick', width=2, dash='dash')))
-fig.update_layout(template="plotly_white", height=650, hovermode="x unified")
+
+# JAVÍTÁS: hovermode="closest" a követéshez
+fig.update_layout(template="plotly_white", height=650, hovermode="closest", legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01))
 st.plotly_chart(fig, use_container_width=True)
 
 # --- KPI MÉRLEG ---
@@ -223,9 +227,9 @@ c1.metric("Bruttó Összvagyon", f"£{total_at_death:,.0f}")
 c2.metric("Összes kifizetett adó", f"£{total_tax_paid:,.0f}")
 eff_rate = (total_tax_paid / total_gross_drawdown * 100) if total_gross_drawdown > 0 else 0
 c3.metric("Effektív adókulcs", f"{eff_rate:.1f}%")
-c4.metric("Nettó Örökség", f"£{(total_at_death - max(0, (total_at_death-500000)*0.4)):,.0f}")
+c4.metric("Nettó Örökség (UK IHT után)", f"£{(total_at_death - max(0, (total_at_death-500000)*0.4)):,.0f}")
 
-# --- STRATÉGIAI ELEMZÉS SZAKASZ (FIXÁLVA) ---
+# --- STRATÉGIAI ELEMZÉS SZAKASZ ---
 st.markdown("### 🔍 Stratégiai Elemzés")
 col_a, col_b = st.columns(2)
 
@@ -233,20 +237,18 @@ with col_a:
     st.write("**Megélhetés és Fenntarthatóság:**")
     months_left = (death_age - drawdown_start_age) * 12
     if months_left > 0:
-        total_liquid = sipp_at_retirement # közelítés
+        total_liquid = sipp_at_retirement
         max_sustainable = (total_liquid * m_market_rate) / (1 - (1 + m_market_rate)**-months_left) + (11502/12)
         st.write(f"- 🏆 **Maximális fenntartható havi nettó:** £{max_sustainable:,.0f}")
         st.write(f"- 🛒 **Jelenleg tervezett havi nettó:** £{monthly_living_cost:,.0f}")
-        if monthly_living_cost > max_sustainable:
-            st.error(f"⚠️ A tervezett költésed magasabb a fenntarthatónál!")
-        else:
-            st.success(f"✅ A terved fenntartható.")
+        if monthly_living_cost > max_sustainable: st.error(f"⚠️ A tervezett költésed magasabb a fenntarthatónál!")
+        else: st.success(f"✅ A terved fenntartható.")
 
 with col_b:
     st.write("**Hitel és Adó információk:**")
-    if user_mode == "Órabéres alkalmazott":
-        st.write(f"- 🏠 **Havi hiteltörlesztő (induló):** £{mortgage_payment:,.0f}")
+    # FIX: Itt most már az initial_mortgage_payment változót írjuk ki!
+    st.write(f"- 🏠 **Havi hiteltörlesztő (induló):** £{initial_mortgage_payment:,.0f}")
     proj_net = calculate_net(gross_sipp_meltdown, 11502/12)
-    isa_ba = max(0, proj_net - adj_mortgage_payment - monthly_living_cost)
+    isa_ba = max(0, proj_net - initial_mortgage_payment - monthly_living_cost)
     st.write(f"- 💰 **Tervezett havi teljes nettó:** £{proj_net:,.0f}")
     st.write(f"- 📈 **Ebből ISA/Holdingba kerül:** £{isa_ba:,.0f}")
