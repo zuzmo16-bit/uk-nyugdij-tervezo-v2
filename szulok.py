@@ -407,26 +407,36 @@ fig.add_trace(go.Scatter(x=ages, y=holding_vals, name='Magyar Holding (Gyár + V
 fig.add_trace(go.Scatter(x=ages, y=mortgage_debt_vals, name='Hitel tartozás', mode='lines', line=dict(color='firebrick', width=2, dash='dash')))
 
 # --- TENGELY JELÖLÉSEK (TICKVALUES) GENERÁLÁSA ---
-# 0-tól 1 millióig 100 ezer fontonként lépkedünk
 custom_ticks = list(range(0, 1000001, 100000))
-# 1 milliótól 25 millióig 5 millió fontonként lépkedünk, hogy a felső rész tiszta maradjon
 custom_ticks += list(range(5000000, 25000001, 5000000))
 
-# Az elrendezés finomítása: magasság 900px, egyedi Y tengely sűrűséggel az alsó sávban
+# Az elrendezés finomítása: szorosabb X tengely feliratok, magasság 900px
 fig.update_layout(
     template="plotly_white", 
-    height=10000, 
+    height=900, 
     hovermode="x unified", 
     hoverlabel=dict(bgcolor="rgba(255,255,255,0.9)", font_size=12, namelength=-1), 
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
     yaxis=dict(
-        tickmode="array",         # Manuális tömb módot kapcsolunk be
-        tickvals=custom_ticks,    # Beadjuk a fenti egyedi listánkat
-        tickformat=",.0f",        # Ezres elválasztó formázás
+        tickmode="array",         
+        tickvals=custom_ticks,    
+        tickformat=",.0f",        
         title="Vagyon Értéke (£)",
-        gridcolor="rgba(200, 200, 200, 0.4)" # Lágy szürke segédvonalak a jobb olvashatóságért
+        gridcolor="rgba(200, 200, 200, 0.4)",
+        showline=True,            # Keretvonal mutatása
+        linewidth=1,
+        linecolor="black"
     ),
-    xaxis=dict(title="Életkor (Év)")
+    xaxis=dict(
+        title=dict(text="Életkor (Év)", standoff=10), # Közelebb hozza a főcímet
+        showline=True,            # Keretvonal mutatása az X tengelyen
+        linewidth=1,
+        linecolor="black",
+        tickangle=0,              # Vízszintesen tartja a számokat
+        tickfont=dict(size=12),   # Jól olvasható betűméret
+        mirror=True               # Golyóálló tengelyrögzítés
+    ),
+    margin=dict(b=40, t=40, l=60, r=40) # Összehúzza az alsó felesleges fehér margót (b=bottom)
 )
 st.plotly_chart(fig, use_container_width=True)
 
