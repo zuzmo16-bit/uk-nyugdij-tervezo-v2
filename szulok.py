@@ -396,7 +396,7 @@ elif user_mode == "Céges igazgató / Vállalkozó":
         holding_vals.append(current_holding)
         mortgage_debt_vals.append(current_mortgage_debt)
 
-# --- VIZUALIZÁCIÓ ---
+# --- VIZUALIZÁCIÓ (MEGNYÚJTOTT, PRÉMIUM ELRENDEZÉS) ---
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=ages, y=sipp_vals, name='Saját SIPP (Közös)', mode='lines', line=dict(color='#87CEEB', width=2), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(135,206,235,0.3)']])))
 if user_mode == "Órabéres alkalmazott":
@@ -406,7 +406,19 @@ fig.add_trace(go.Scatter(x=ages, y=isa_vals, name='ISA Vagyon (Közös)', mode='
 fig.add_trace(go.Scatter(x=ages, y=holding_vals, name='Magyar Holding (Gyár + Vanguard)' if user_mode == "Céges igazgató / Vállalkozó" else 'Magyar Holding', mode='lines', line=dict(color='#C0C0C0', width=4), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(192,192,192,0.5)']])))
 fig.add_trace(go.Scatter(x=ages, y=mortgage_debt_vals, name='Hitel tartozás', mode='lines', line=dict(color='firebrick', width=2, dash='dash')))
 
-fig.update_layout(template="plotly_white", height=650, hovermode="x unified", hoverlabel=dict(bgcolor="rgba(255,255,255,0.9)", font_size=12, namelength=-1), legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01))
+# Az elrendezés finomítása: magasság 900px-re növelve, hogy függőlegesen megnyúljon és elkülönüljön
+fig.update_layout(
+    template="plotly_white", 
+    height=900, 
+    hovermode="x unified", 
+    hoverlabel=dict(bgcolor="rgba(255,255,255,0.9)", font_size=12, namelength=-1), 
+    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+    yaxis=dict(
+        tickformat=",.0f",  # Szép, ezres tagozású számformátum az Y tengelyen
+        title="Vagyon Értéke (£)"
+    ),
+    xaxis=dict(title="Életkor (Év)")
+)
 st.plotly_chart(fig, use_container_width=True)
 
 # --- KPI MÉRLEG (2027-ES LABOR REFORM ÉS HU ARBITRÁZS SZERINTI JAVÍTÁS) ---
@@ -414,20 +426,12 @@ st.markdown("---")
 total_at_death = sipp_vals[-1] + aviva_vals[-1] + house_vals[-1] + isa_vals[-1] + holding_vals[-1] - mortgage_debt_vals[-1]
 
 if user_mode == "Céges igazgató / Vállalkozó":
-    # 2027-es új brit szabályok a vállalkozói ágban:
-    # A SIPP-re kőkemény 40% adó ugrik (mivel a 2027-es Labour költségvetés eltörölte a mentességet)
     sipp_iht_tax = sipp_vals[-1] * 0.40
-    
-    # A UK ingatlanra is 40% adó jár a £325,000-os alapkeret felett
     uk_property_net = max(0, house_vals[-1] - mortgage_debt_vals[-1])
     property_iht_tax = max(0, (uk_property_net - 325000) * 0.40)
-    
-    # Az ISA teljesen adómentes az örökösöknek.
-    # A Magyar Gyár és Holding pedig az egyenes ági magyar öröklési törvények miatt 0% ILLETÉKKEL öröklődik!
     total_uk_iht_tax = sipp_iht_tax + property_iht_tax
     net_inheritance_val = total_at_death - total_uk_iht_tax
 else:
-    # Alkalmazotti profil esetén marad az alapértelmezett, globális brit 40%-os örökösödési adóformula
     net_inheritance_val = total_at_death - max(0, (total_at_death - 500000) * 0.4)
 
 st.header(f"📜 Perennis Birodalmi Mérleg ({death_age} évesen)")
@@ -436,8 +440,6 @@ c1.metric("Bruttó Összvagyon", f"£{total_at_death:,.0f}")
 c2.metric("Összes kifizetett adó", f"£{total_tax_paid:,.0f}")
 eff_rate = (total_tax_paid / total_gross_drawdown * 100) if total_gross_drawdown > 0 else 0
 c3.metric("Effektív adókulcs", f"{eff_rate:.1f}%")
-
-# Ez a metrika most már a valóságot mutatja a magyar Kft. 0%-os védelmével!
 c4.metric("Nettó Örökség (2027-es szabályok)", f"£{net_inheritance_val:,.0f}")
 
 # --- STRATÉGIAI ELEMZÉS ---
