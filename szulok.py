@@ -96,11 +96,9 @@ elif user_mode == "Céges igazgató / Vállalkozó":
     private_kitchen_revenue = st.sidebar.number_input("Privát projekt átlagos bruttó ára (£)", value=18000)
     private_kitchen_costs = st.sidebar.number_input("Privát projekt anyag + szakiparos költsége (£)", value=8200)
     
-    # Teljes bevételek és anyagköltségek számítása
     wren_annual_revenue = wren_rate_per_kitchen * wren_weeks
     private_annual_revenue = private_kitchens_count * private_kitchen_revenue
     company_annual_revenue = wren_annual_revenue + private_annual_revenue
-    
     private_annual_costs = private_kitchens_count * private_kitchen_costs
     
     st.sidebar.markdown("### 🪚 Alvállalkozó (Subbie) és Fix Költségek")
@@ -108,18 +106,16 @@ elif user_mode == "Céges igazgató / Vállalkozó":
     subbie_days_per_week = st.sidebar.slider("Subbie napok száma egy héten", 1, 7, 5)
     vane_expenses_annual = st.sidebar.number_input("Fix működési költségek (Furgon, könyvelő, szerszámok) (£)", value=12000)
     
-    # Összesített céges költségek (Subbie + Működés + Privát konyhák anyagköltsége)
     subbie_annual_gross = subbie_day_rate * subbie_days_per_week * (wren_weeks + private_kitchens_count)
     company_expenses = subbie_annual_gross + vane_expenses_annual + private_annual_costs
     
     st.sidebar.markdown("### 💰 Optimalizált Extrakciós Stratégia")
     director_salary = st.sidebar.number_input("Igazgatói optimalizált éves bér (£)", value=12570)
-    monthly_sipp_director = st.sidebar.number_input("Havi céges SIPP hozzájárulás (Maximalizált) (£)", value=5000)
+    monthly_sipp_director = st.sidebar.number_input("Havi céges SIPP hozzájralás (Maximalizált) (£)", value=5000)
     
     annual_corporate_sipp = monthly_sipp_director * 12
     corporate_profit_before_tax = max(0, company_annual_revenue - company_expenses - director_salary - annual_corporate_sipp)
     
-    # Sávos Corporation Tax (Marginal Relief) számítás
     if corporate_profit_before_tax <= 50000:
         corp_tax = corporate_profit_before_tax * 0.19
     elif corporate_profit_before_tax <= 250000:
@@ -130,14 +126,15 @@ elif user_mode == "Céges igazgató / Vállalkozó":
     retained_earnings = corporate_profit_before_tax - corp_tax
     max_dividend_possible = retained_earnings
     
-    # Osztalék csúszka
     annual_dividend_taken = st.sidebar.slider("Kivett éves osztalék az Ltd-ből (£)", 0, int(max_dividend_possible), 37700)
     holding_transfer_annual = max(0, retained_earnings - annual_dividend_taken)
     
     st.sidebar.info(f"📊 Társasági adó (CT): £{corp_tax:,.0f} | 🏢 Holdingba vándorló profit: £{holding_transfer_annual:,.0f}")
     
-    active_annual_gross = director_salary + annual_dividend_taken
+    st.sidebar.markdown("### 🏭 52 éves kortól: Magyar B2B Korpuszgyár")
+    st.sidebar.success("💡 Bekapcsolva: évi £343,980 tiszta (9% TAO utáni) profit beáramlás közvetlenül a Holdingba!")
     
+    active_annual_gross = director_salary + annual_dividend_taken
     st.sidebar.header("👫 Családi Szövetség (Vállalkozó)")
     partner_mode = st.sidebar.checkbox("Partner bevonása (Joint Strategy)", value=False)
     if partner_mode:
@@ -298,7 +295,7 @@ if user_mode == "Órabéres alkalmazott" or user_mode == "Nemzetközi Kivonulás
         holding_vals.append(current_holding)
         mortgage_debt_vals.append(current_mortgage_debt)
 
-# --- VÁLLALKOZÓI ÁG: PRIVÁT KONYHA BŐVÍTÉSSEL ---
+# --- VÁLLALKOZÓI ÁG: MAGYAR KORPUSZGYÁR INTEGRÁCIÓVAL ---
 elif user_mode == "Céges igazgató / Vállalkozó":
     if partner_mode:
         current_sipp *= 2
@@ -316,15 +313,19 @@ elif user_mode == "Céges igazgató / Vállalkozó":
         # AKTÍV ÉVEK SZAKASZOS LOGIKÁJA
         if m <= (working_years * 12):
             if age < 44:
-                # 1. Fázis: Betanulás subbie-ként (SIPP és Holding = 0)
+                # 1. Fázis: Betanulás subbie-ként (SIPP=0, Holding=0)
                 pass
             elif age < 46:
-                # 2. Fázis: Ltd indítás és alapozás (Alacsonyabb SIPP)
+                # 2. Fázis: Ltd indítás és alapozás (Fix £5k/év SIPP)
                 current_sipp += (5000 / 12)
-            else:
-                # 3. Fázis: Fővállalkozás (40 Wren + 8 Privát konyha) -> Max SIPP + Új magasabb Holding profit
+            elif age < 52:
+                # 3. Fázis: Fővállalkozói Wren+Privát korszak -> Max SIPP + Holding transzfer (£30,311/év)
                 current_sipp += monthly_sipp_director
                 current_holding += (holding_transfer_annual / 12)
+            else:
+                # 4. Fázis: 52 ÉVES KOR: ELINDUL A MAGYAR KORPUSZGYÁR!
+                # A fizikai konyhabeépítés leáll (SIPP=0), helyette beömlik az évi £343,980 tiszta profit havonta
+                current_holding += (343980 / 12)
 
         # Ingatlanvásárlás SIPP PCLS-ből
         if not pcls_taken and age >= pcls_age:
@@ -352,7 +353,7 @@ elif user_mode == "Céges igazgató / Vállalkozó":
             if current_mortgage_debt <= 0: 
                 current_mortgage_debt, mortgage_payment = 0, 0
         
-        # SIPP Kiszivattyúzás: Max £20,000/év lakossági ISA-ba, maradék a Holdingba
+        # SIPP Kiszivattyúzás: Max £20,000/év lakossági ISA-ba, a többi a Holdingba
         st_p_m = (11502 / 12 * (2 if partner_mode else 1)) if age >= 70 else 0
         if age >= drawdown_start_age:
             if sipp_at_retirement == 0: 
@@ -401,7 +402,7 @@ if user_mode == "Órabéres alkalmazott":
     fig.add_trace(go.Scatter(x=ages, y=aviva_vals, name='AVIVA (Közös)', mode='lines', line=dict(color='#40E0D0', width=2), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(64,224,208,0.3)']])))
 fig.add_trace(go.Scatter(x=ages, y=house_vals, name='Saját Ingatlan', mode='lines', line=dict(color='royalblue', width=3), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(65,105,225,0.4)']])))
 fig.add_trace(go.Scatter(x=ages, y=isa_vals, name='ISA Vagyon (Közös)', mode='lines', line=dict(color='gold', width=3), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(255,215,0,0.4)']])))
-fig.add_trace(go.Scatter(x=ages, y=holding_vals, name='Magyar Holding (Vanguard)' if user_mode == "Céges igazgató / Vállalkozó" else 'Magyar Holding', mode='lines', line=dict(color='#C0C0C0', width=4), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(192,192,192,0.5)']])))
+fig.add_trace(go.Scatter(x=ages, y=holding_vals, name='Magyar Holding (Gyár + Vanguard)' if user_mode == "Céges igazgató / Vállalkozó" else 'Magyar Holding', mode='lines', line=dict(color='#C0C0C0', width=4), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(192,192,192,0.5)']])))
 fig.add_trace(go.Scatter(x=ages, y=mortgage_debt_vals, name='Hitel tartozás', mode='lines', line=dict(color='firebrick', width=2, dash='dash')))
 
 fig.update_layout(template="plotly_white", height=650, hovermode="x unified", hoverlabel=dict(bgcolor="rgba(255,255,255,0.9)", font_size=12, namelength=-1), legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01))
