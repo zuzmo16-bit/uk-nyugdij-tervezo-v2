@@ -410,10 +410,10 @@ fig.add_trace(go.Scatter(x=ages, y=mortgage_debt_vals, name='Hitel tartozás', m
 custom_ticks = list(range(0, 1000001, 100000))
 custom_ticks += list(range(5000000, 25000001, 5000000))
 
-# Az elrendezés finomítása: szorosabb X tengely feliratok, magasság 900px
+# Az elrendezés finomítása: A számfeliratok szorosan a tengelyhez húzása
 fig.update_layout(
     template="plotly_white", 
-    height=10000, 
+    height=5000, 
     hovermode="x unified", 
     hoverlabel=dict(bgcolor="rgba(255,255,255,0.9)", font_size=12, namelength=-1), 
     legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
@@ -422,23 +422,26 @@ fig.update_layout(
         tickvals=custom_ticks,    
         tickformat=",.0f",        
         title="Vagyon Értéke (£)",
-        gridcolor="rgba(200, 200, 200, 0.4)",
-        showline=True,            # Keretvonal mutatása
-        linewidth=1,
-        linecolor="black"
+        gridcolor="rgba(200, 200, 200, 0.4)"
     ),
     xaxis=dict(
-        title=dict(text="Életkor (Év)", standoff=10), # Közelebb hozza a főcímet
-        showline=True,            # Keretvonal mutatása az X tengelyen
-        linewidth=1,
-        linecolor="black",
-        tickangle=0,              # Vízszintesen tartja a számokat
-        tickfont=dict(size=12),   # Jól olvasható betűméret
-        mirror=True               # Golyóálló tengelyrögzítés
+        title=dict(text="Életkor (Év)", standoff=5), # A főcímet is közelebb hozzuk
+        tickmode="linear",
+        dtick=5,                  # 5 évente jelenjen meg szám (43, 48, 53...)
+        tickangle=0,              
+        tickfont=dict(size=12),   
+        
+        # --- ITT HÚZZUK A SZÁMOKAT A TENGELYHEZ ---
+        ticklen=4,                # A kis jelölőtüskék hossza (rövidre véve)
+        tickpad=2,                # A számok távolsága a tüskétől MINDÖSSZE 2 pixel!
+        
+        showgrid=True,            # Függőleges segédvonalak bekapcsolása a pontosabb leolvasásért
+        gridcolor="rgba(200, 200, 200, 0.2)"
     ),
-    margin=dict(b=40, t=40, l=60, r=40) # Összehúzza az alsó felesleges fehér margót (b=bottom)
+    margin=dict(b=30, t=40, l=60, r=40) # Az alsó margót is szűkre szabjuk
 )
 st.plotly_chart(fig, use_container_width=True)
+
 
 # --- KPI MÉRLEG (2027-ES LABOR REFORM ÉS HU ARBITRÁZS SZERINTI JAVÍTÁS) ---
 st.markdown("---")
