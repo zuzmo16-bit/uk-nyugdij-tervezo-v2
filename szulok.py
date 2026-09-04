@@ -5,8 +5,8 @@ import plotly.graph_objects as go
 # --- OLDAL KONFIGURÁCIÓ ---
 st.set_page_config(page_title="Perennis Imperial Master", layout="wide", page_icon="🛡️")
 
-st.title("🛡️ Perennis: A Birodalmi Vagyonkezelő (Full Edition)")
-st.write("SIPP & AVIVA Meltdown, ISA megtakarítás és alkalmazotti adóoptimalizálás.")
+st.title("🛡️ Perennis: A Birodalmi Vagyonkezelő (Master Edition)")
+st.write("SIPP & AVIVA különválasztott hozamokkal és egyéni befizetésekkel.")
 
 # --- SIDEBAR: FELHASZNÁLÓI PROFIL ---
 st.sidebar.markdown("## ⚙️ Felhasználói Profil")
@@ -18,19 +18,24 @@ user_mode = st.sidebar.radio(
 # --- IDŐTÁV & ÉLETHOSSZ ---
 st.sidebar.markdown("---")
 st.sidebar.header("📌 Időtáv & Élethossz")
-current_age = st.sidebar.slider("Jelenlegi életkor", 18, 74, 31)
+if user_mode == "Nemzetközi Kivonulás (UK-HU Transzfer)":
+    current_age = st.sidebar.slider("Hány évesen indul a transzfer?", 45, 75, 53)
+else:
+    current_age = st.sidebar.slider("Jelenlegi életkor", 18, 74, 31)
 death_age = st.sidebar.slider("Várható élethossz", 75, 100, 85)
 
-# --- VÁLTOZÓK INICIALIZÁLÁSA ---
-start_sipp = 15000
-start_aviva = 0 # Új: AVIVA induló
+# --- INICIALIZÁLÁS ---
+start_sipp = 0
+start_aviva = 0
 start_trust = 0
 start_house = 0
 working_years = 0
-monthly_sipp_total = 0
+monthly_sipp_user_net = 0
 monthly_aviva_total = 0
+monthly_sipp_director = 0
 active_annual_gross = 0
 
+# --- PROFIL SPECIFIKUS ADATOK ---
 if user_mode == "Órabéres alkalmazott":
     st.sidebar.header("👷 Alkalmazotti bér")
     hourly_rate = st.sidebar.number_input("Alap órabér (£)", value=19.14)
@@ -38,31 +43,43 @@ if user_mode == "Órabéres alkalmazott":
     weekend_bonus = st.sidebar.number_input("Hétvégi pótlék (£ / alkalom)", value=53.70)
     weekends_per_year = st.sidebar.slider("Hétvégék száma egy évben", 0, 52, 26)
     
-    st.sidebar.header("🏹 Nyugdíj hozzájárulás")
+    st.sidebar.header("🏢 AVIVA (Workplace Pension)")
+    start_aviva = st.sidebar.number_input("Jelenlegi AVIVA egyenleg (£)", value=5000)
     ee_pct = st.sidebar.slider("Saját hozzájárulás (%)", 0, 20, 4)
     er_pct = st.sidebar.slider("Munkáltatói hozzájárulás (%)", 0, 20, 4)
+    aviva_return = st.sidebar.slider("AVIVA várható éves hozama (%)", 1.0, 10.0, 4.5)
+    
+    st.sidebar.header("🏹 Saját SIPP (Vanguard)")
+    start_sipp = st.sidebar.number_input("Jelenlegi SIPP egyenleg (£)", value=0)
+    monthly_sipp_user_net = st.sidebar.number_input("Havi saját befizetés a SIPP-be (Nettó £)", value=100)
     
     working_years = st.sidebar.slider("Hány évig dolgozol még (befizetés)?", 0, int(75-current_age), 36)
-    
     active_annual_gross = (hourly_rate * hours_per_week * 52) + (weekend_bonus * weekends_per_year)
-    # Az alkalmazotti befizetés az AVIVA-ba megy
     monthly_aviva_total = (active_annual_gross / 12) * ((ee_pct + er_pct) / 100)
-    # A SIPP-be jelenleg 0 megy, hacsak nincs külön slider (user korábbi logikája szerint ez külön privát)
-    start_aviva = st.sidebar.number_input("Jelenlegi AVIVA egyenleg (£)", value=5000)
 
 elif user_mode == "Céges igazgató / Vállalkozó":
     st.sidebar.header("🏢 Vállalkozói adatok")
-    monthly_sipp_total = st.sidebar.number_input("Havi céges SIPP befizetés (£)", value=5000)
+    start_sipp = st.sidebar.number_input("Jelenlegi SIPP egyenleg (£)", value=15000)
+    monthly_sipp_director = st.sidebar.number_input("Havi céges SIPP befizetés (£)", value=5000)
     working_years = st.sidebar.slider("Hány évig fizetsz még be a SIPP-be?", 0, int(75-current_age), 20)
-    active_annual_gross = 12570 
+    start_trust = st.sidebar.number_input("Holding tőke (£)", value=0)
+    aviva_return = 0
+
+elif user_mode == "Nemzetközi Kivonulás (UK-HU Transzfer)":
+    st.sidebar.subheader("💰 Jelenlegi Vagyon")
+    start_sipp = st.sidebar.number_input("Összesített SIPP egyenleg (£)", value=1000000)
+    start_house = st.sidebar.number_input("UK Ingatlan értéke (£)", value=500000)
+    start_trust = st.sidebar.number_input("Holding / Tröszt tőke (£)", value=250000)
+    working_years = 0
+    aviva_return = 0
 
 # --- SIPP & KIFIZETÉS STRATÉGIA ---
 st.sidebar.markdown("---")
 st.sidebar.header("🔑 SIPP & Kifizetés Stratégia")
 pcls_age = st.sidebar.slider("Házvétel (25% PCLS) életkora", 57, 75, 57)
-drawdown_start_age = st.sidebar.slider("Havi kifizetés (Meltdown) kezdete", 57, 75, 70)
+drawdown_start_age = st.sidebar.slider("Havi kifizetés (Meltdown) kezdete", 57, 75, 70 if user_mode != "Nemzetközi Kivonulás (UK-HU Transzfer)" else current_age)
 gross_sipp_meltdown = st.sidebar.slider("Havi bruttó SIPP+AVIVA kivét (£)", 0, 25000, 5594)
-monthly_living_cost = st.sidebar.slider("Havi nettó megélhetési igény (Zsebbe) (£)", 500, 15000, 500)
+monthly_living_cost = st.sidebar.slider("Havi nettó megélhetési igény (Zsebbe) (£)", 500, 15000, 3500)
 
 # --- ÁLLAMI NYUGDÍJ ---
 st.sidebar.markdown("---")
@@ -70,8 +87,8 @@ st.sidebar.header("🏛️ Állami Nyugdíj")
 state_p_age = st.sidebar.slider("Állami nyugdíjkorhatár", 67, 75, 70)
 state_p_annual = st.sidebar.number_input("Éves állami nyugdíj (£)", value=11502)
 
-# --- PIACI PARAMÉTEREK ---
-st.sidebar.header("📈 Piaci Paraméterek")
+# --- PIACI PARAMÉTEREK (Csak a SIPP-re és Holdingra) ---
+st.sidebar.header("📈 Ekonomiai Beállítások")
 market_return = st.sidebar.slider("Vanguard éves hozam (%)", 1.0, 15.0, 7.5)
 inflation = st.sidebar.slider("Éves infláció (%)", 0.0, 8.0, 2.5)
 
@@ -89,73 +106,74 @@ def calculate_net(sipp_m, state_m):
         if taxable > 125140: tax += (taxable - 125140) * 0.45
     return (total_a - tax) / 12
 
-real_rate = ((1 + (market_return / 100)) / (1 + (inflation / 100))) - 1
-m_rate = (1 + real_rate) ** (1/12) - 1
+real_market_rate = ((1 + (market_return / 100)) / (1 + (inflation / 100))) - 1
+m_market_rate = (1 + real_market_rate) ** (1/12) - 1
+
+if user_mode == "Órabéres alkalmazott":
+    real_aviva_rate = ((1 + (aviva_return / 100)) / (1 + (inflation / 100))) - 1
+    m_aviva_rate = (1 + real_aviva_rate) ** (1/12) - 1
+else:
+    m_aviva_rate = 0
 
 # --- SZIMULÁCIÓ ---
-ages, sipp_vals, aviva_vals, hu_base_vals, uk_house_vals, trust_vals = [], [], [], [], [], []
-current_sipp, current_aviva, current_trust, current_uk_house = start_sipp, start_aviva, start_trust, 0
-pcls_taken, total_tax_paid = False, 0
+ages, sipp_vals, aviva_vals, uk_house_vals, trust_vals = [], [], [], [], []
+current_sipp, current_aviva, current_trust, current_uk_house = start_sipp, start_aviva, start_trust, start_house
+pcls_taken, total_tax_paid = (user_mode == "Nemzetközi Kivonulás (UK-HU Transzfer)"), 0
 
 for m in range(int((death_age - current_age) * 12) + 1):
     age = current_age + (m / 12)
     ages.append(age)
     
-    # Hozamok
-    current_sipp *= (1 + m_rate)
-    current_aviva *= (1 + m_rate)
-    current_trust *= (1 + m_rate)
+    # 1. Hozamok alkalmazása
+    current_sipp *= (1 + m_market_rate)
+    current_aviva *= (1 + m_aviva_rate)
+    current_trust *= (1 + m_market_rate)
     current_uk_house *= (1 + (inflation / 100)) ** (1/12)
 
-    # 1. Befizetések
+    # 2. Befizetések
     if m <= (working_years * 12) and age <= 75:
-        current_sipp += monthly_sipp_total
+        # AVIVA (Munkahelyi)
         current_aviva += monthly_aviva_total
+        # Saját SIPP (+25% Tax relief)
+        if user_mode == "Órabéres alkalmazott":
+            current_sipp += (monthly_sipp_user_net * 1.25)
+        elif user_mode == "Céges igazgató / Vállalkozó":
+            current_sipp += monthly_sipp_director
 
-    # 2. 25% PCLS (Kombinált poolból)
+    # 3. 25% PCLS (Kombinált poolból)
     if not pcls_taken and age >= pcls_age:
-        total_pension_pool = current_sipp + current_aviva
-        pcls_val = total_pension_pool * 0.25
-        # Arányosan vonjuk le mindkettőből
-        ratio_sipp = current_sipp / total_pension_pool if total_pension_pool > 0 else 0.5
-        current_sipp -= pcls_val * ratio_sipp
-        current_aviva -= pcls_val * (1 - ratio_sipp)
+        total_pool = current_sipp + current_aviva
+        pcls_val = total_pool * 0.25
+        ratio = current_sipp / total_pool if total_pool > 0 else 0.5
+        current_sipp -= pcls_val * ratio
+        current_aviva -= pcls_val * (1 - ratio)
         current_uk_house = pcls_val
         pcls_taken = True
         
     st_p_m = (state_p_annual / 12) if age >= state_p_age else 0
     
-    # 4. Meltdown & Megélhetés & ISA (Trust/Holding néven a grafikonon)
+    # 4. Meltdown & Megélhetés
     if age >= drawdown_start_age:
-        total_pension_balance = current_sipp + current_aviva
-        if total_pension_balance > 0:
-            actual_gross = min(total_pension_balance, gross_sipp_meltdown)
-            net_pension_income = calculate_net(actual_gross, st_p_m) - (st_p_m) # Csak a nyugdíjból jövő nettó
-            total_net_all_sources = net_pension_income + st_p_m
+        total_pension = current_sipp + current_aviva
+        if total_pension > 0:
+            actual_gross = min(total_pension, gross_sipp_meltdown)
+            total_net = calculate_net(actual_gross, st_p_m)
+            total_tax_paid += ((actual_gross + st_p_m) - total_net)
             
-            total_tax_paid += ((actual_gross + st_p_m) - total_net_all_sources)
+            # Levonás arányosan a két alapból
+            ratio = current_sipp / total_pension if total_pension > 0 else 0.5
+            current_sipp -= actual_gross * ratio
+            current_aviva -= actual_gross * (1 - ratio)
             
-            # Levonás a poolból arányosan
-            ratio_sipp = current_sipp / total_pension_balance if total_pension_balance > 0 else 0.5
-            current_sipp -= actual_gross * ratio_sipp
-            current_aviva -= actual_gross * (1 - ratio_sipp)
-            
-            # Pénz elosztása: Megélhetés vs ISA
-            # A user kérése: nettó jövedelem a zsebbe csak a megélhetésig, a többi ISA
-            if total_net_all_sources >= monthly_living_cost:
-                # A "zsebbe" csak a living cost megy, a többi a sárga vonalba (ISA)
-                current_trust += (total_net_all_sources - monthly_living_cost)
+            # Zsebbe vs ISA/Holding
+            if total_net >= monthly_living_cost:
+                current_trust += (total_net - monthly_living_cost)
             else:
-                # Ha a nettó nem elég, az ISA-ból pótoljuk
-                shortfall = monthly_living_cost - total_net_all_sources
+                shortfall = monthly_living_cost - total_net
                 current_trust = max(0, current_trust - shortfall)
-            
-            if current_sipp <= 10: current_sipp = 0
-            if current_aviva <= 10: current_aviva = 0
         else:
-            # Ha elfogyott a nyugdíj, ISA + Állami marad
-            current_net_state = calculate_net(0, st_p_m)
-            current_trust = max(0, current_trust - (monthly_living_cost - current_net_state))
+            net_state = calculate_net(0, st_p_m)
+            current_trust = max(0, current_trust - (monthly_living_cost - net_state))
 
     sipp_vals.append(current_sipp)
     aviva_vals.append(current_aviva)
@@ -164,56 +182,48 @@ for m in range(int((death_age - current_age) * 12) + 1):
 
 # --- VIZUALIZÁCIÓ ---
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=ages, y=sipp_vals, name='SIPP egyenleg (Saját)', mode='lines', line=dict(color='#87CEEB', width=2), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(135,206,235,0.3)']])))
-fig.add_trace(go.Scatter(x=ages, y=aviva_vals, name='AVIVA egyenleg (Workplace)', mode='lines', line=dict(color='#40E0D0', width=2), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(64,224,208,0.3)']])))
-fig.add_trace(go.Scatter(x=ages, y=uk_house_vals, name='Ingatlan (PCLS-ből)', mode='lines', line=dict(color='royalblue', width=3), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(65,105,225,0.4)']])))
+fig.add_trace(go.Scatter(x=ages, y=sipp_vals, name='Saját SIPP (Vanguard hozammal)', mode='lines', line=dict(color='#87CEEB', width=2), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(135,206,235,0.3)']])))
+if user_mode == "Órabéres alkalmazott":
+    fig.add_trace(go.Scatter(x=ages, y=aviva_vals, name='Munkahelyi AVIVA (Konzervatív hozammal)', mode='lines', line=dict(color='#40E0D0', width=2), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(64,224,208,0.3)']])))
 
-# Sárga vonal elnevezése profilonként
+fig.add_trace(go.Scatter(x=ages, y=uk_house_vals, name='Saját Ingatlan (PCLS)', mode='lines', line=dict(color='teal', width=3), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(0,128,128,0.4)']])))
+
 trust_label = "ISA Vagyon" if user_mode == "Órabéres alkalmazott" else "Perennis Vagyon (Holding)"
 fig.add_trace(go.Scatter(x=ages, y=trust_vals, name=trust_label, mode='lines', line=dict(color='gold', width=4), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(255,215,0,0.5)']])))
 
 fig.update_layout(template="plotly_white", height=650, hovermode="x unified", legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01))
 st.plotly_chart(fig, use_container_width=True)
 
-# --- STRATÉGIAI ELEMZÉS ---
+# --- ANALITIKAI MÉRLEG ---
+st.markdown("---")
 total_at_death = sipp_vals[-1] + aviva_vals[-1] + uk_house_vals[-1] + trust_vals[-1]
-iht_tax = max(0, (total_at_death - 500000) * 0.40) 
+iht_tax = max(0, (total_at_death - 500000) * 0.40)
 
 st.header(f"📜 Perennis Birodalmi Mérleg ({death_age} évesen)")
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Bruttó Összvagyon", f"£{total_at_death:,.0f}")
-c4.metric("Nettó Örökség", f"£{(total_at_death - iht_tax):,.0f}")
-
-# Éves bruttó bér és havi befizetés megjelenítése
 if user_mode == "Órabéres alkalmazott":
-    c2.metric("Éves bruttó bér", f"£{active_annual_gross:,.0f}")
-    c3.metric("Havi AVIVA befizetés", f"£{monthly_aviva_total:,.0f}")
+    c2.metric("Havi Saját SIPP (+Bónusz)", f"£{monthly_sipp_user_net * 1.25:,.0f}")
+    c3.metric("Éves AVIVA hozam", f"{aviva_return}%")
 else:
-    c2.metric("Havi SIPP befizetés", f"£{monthly_sipp_total:,.0f}")
+    c2.metric("Havi SIPP befizetés", f"£{monthly_sipp_director:,.0f}")
+    c3.metric("Összes kifizetett adó", f"£{total_tax_paid:,.0f}")
+c4.metric("Nettó Örökség", f"£{(total_at_death - iht_tax):,.0f}")
 
 st.markdown("### 🔍 Stratégiai Elemzés")
 col_a, col_b = st.columns(2)
-
 with col_a:
-    st.write("**Adóoptimalizálás:**")
     st_p_m = state_p_annual / 12
-    proj_net_total = calculate_net(gross_sipp_meltdown, st_p_m)
-    
-    # Kiszámoljuk a zsebbe kapott és ISA-ba menő részt
-    zsebbe = min(proj_net_total, monthly_living_cost)
-    isa_ba = max(0, proj_net_total - monthly_living_cost)
-    
-    st.write(f"- A tervezett havi **£{gross_sipp_meltdown:,.0f}** kombinált nyugdíj kivét után a teljes nettó jövedelmed **£{proj_net_total:,.0f}** lesz.")
-    st.write(f"- Ebből **£{zsebbe:,.0f}** fedezi a havi megélhetésedet (zsebbe), a fennmaradó **£{isa_ba:,.0f}** pedig az **ISA számládra** kerül befektetésre.")
+    proj_net = calculate_net(gross_sipp_meltdown, st_p_m)
+    zsebbe = min(proj_net, monthly_living_cost)
+    isa_ba = max(0, proj_net - monthly_living_cost)
+    st.write(f"**Tervezett jövőbeli havi nettó:** £{proj_net:,.0f}")
+    st.write(f"- Ebből **£{zsebbe:,.0f}** megy megélhetésre (Zsebbe).")
+    st.write(f"- A fennmaradó **£{isa_ba:,.0f}** kerül az **{trust_label}** számlára.")
 
 with col_b:
-    st.write("**Vagyonvédelem & 4% szabály:**")
-    # A 4%-ot az ISA + Nyugdíj tőkére vetítjük
-    idx_retire = int((drawdown_start_age-current_age)*12)
-    check_val = max(trust_vals[-1], trust_vals[idx_retire] if idx_retire < len(trust_vals) else 0)
-    withdrawal_rate = (monthly_living_cost * 12 / check_val) * 100 if check_val > 0 else 0
-    
-    if withdrawal_rate > 4.0:
-        st.warning(f"⚠️ A havi költésed ({withdrawal_rate:.1f}%) meghaladja az Alkotmányos 4%-ot az elérhető tőkéhez képest.")
-    else:
-        st.success(f"✅ A megélhetési rátád ({withdrawal_rate:.1f}%) fenntartható örökséget biztosít.")
+    idx_ret = int((drawdown_start_age-current_age)*12)
+    val_at_ret = trust_vals[idx_ret] if idx_ret < len(trust_vals) else trust_vals[-1]
+    w_rate = (monthly_living_cost * 12 / max(1, val_at_ret)) * 100
+    if w_rate > 4.0: st.warning(f"⚠️ A {w_rate:.1f}%-os kivételi ráta magasabb az Alkotmányos 4%-nál.")
+    else: st.success(f"✅ A {w_rate:.1f}%-os kivételi ráta fenntartható.")
