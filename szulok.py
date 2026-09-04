@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="Perennis Imperial Master", layout="wide", page_icon="🛡️")
 
 st.title("🛡️ Perennis: A Birodalmi Vagyonkezelő (Master Edition)")
-st.write("Alkalmazotti hitel-szimulációval, SIPP Meltdown-nal és Nemzetközi optimalizálással.")
+st.write("Alkalmazotti hitelképesség-vizsgálattal, SIPP Meltdown-nal és Nemzetközi optimalizálással.")
 
 # --- SIDEBAR: FELHASZNÁLÓI PROFIL ---
 st.sidebar.markdown("## ⚙️ Felhasználói Profil")
@@ -34,6 +34,7 @@ monthly_sipp_user_net = 0
 monthly_aviva_total = 0
 monthly_sipp_director = 0
 active_annual_gross = 0
+partner_income = 0
 
 # --- PROFIL SPECIFIKUS ADATOK ---
 if user_mode == "Órabéres alkalmazott":
@@ -42,6 +43,13 @@ if user_mode == "Órabéres alkalmazott":
     hours_per_week = st.sidebar.number_input("Heti alap óraszám", value=40)
     weekend_bonus = st.sidebar.number_input("Hétvégi pótlék (£ / alkalom)", value=53.70)
     weekends_per_year = st.sidebar.slider("Hétvégék száma egy évben", 0, 52, 26)
+    
+    active_annual_gross = (hourly_rate * hours_per_week * 52) + (weekend_bonus * weekends_per_year)
+
+    st.sidebar.header("👫 Jelzáloghitel típusa")
+    mortgage_type = st.sidebar.radio("Hitel konstrukció", ("Solo Mortgage", "Joint Mortgage"))
+    if mortgage_type == "Joint Mortgage":
+        partner_income = st.sidebar.number_input("Partner éves bruttó jövedelme (£)", value=30000)
     
     st.sidebar.header("🏢 AVIVA (Workplace Pension)")
     start_aviva = st.sidebar.number_input("Jelenlegi AVIVA egyenleg (£)", value=5000)
@@ -53,13 +61,13 @@ if user_mode == "Órabéres alkalmazott":
     start_sipp = st.sidebar.number_input("Jelenlegi SIPP egyenleg (£)", value=15000)
     monthly_sipp_user_net = st.sidebar.number_input("Havi saját befizetés a SIPP-be (Nettó £)", value=100)
     
-    st.sidebar.header("🏠 Ingatlanhitel (Alkalmazott)")
-    target_house_value = st.sidebar.number_input("Cél ingatlanérték (£)", value=400000)
+    st.sidebar.header("🏠 Ingatlanhitel Paraméterek")
+    # Megjegyzés: A target_house_value-t később vetjük össze a limittel
+    target_house_value = st.sidebar.number_input("Tervezett ingatlanérték (£)", value=400000)
     mortgage_interest = st.sidebar.slider("Hitel kamatláb (%)", 1.0, 8.0, 4.5)
     mortgage_term = st.sidebar.slider("Hitel futamideje (év)", 5, 25, 15)
 
     working_years = st.sidebar.slider("Hány évig dolgozol még (befizetés)?", 0, int(75-current_age), 36)
-    active_annual_gross = (hourly_rate * hours_per_week * 52) + (weekend_bonus * weekends_per_year)
     monthly_aviva_total = (active_annual_gross / 12) * ((ee_pct + er_pct) / 100)
 
 elif user_mode == "Céges igazgató / Vállalkozó":
@@ -142,6 +150,7 @@ current_mortgage_debt = 0
 loan_balance = loan_amount
 pcls_taken, total_tax_paid, total_gross_income_drawdown = (user_mode == "Nemzetközi Kivonulás (UK-HU Transzfer)"), 0, 0
 mortgage_payment = 0
+final_pcls_val = 0
 
 if enable_ssas_loan:
     current_sipp -= loan_amount
@@ -176,6 +185,7 @@ for m in range(int((death_age - current_age) * 12) + 1):
     if not pcls_taken and age >= pcls_age:
         total_p = current_sipp + current_aviva
         pcls_val = total_p * 0.25
+        final_pcls_val = pcls_val
         ratio = current_sipp / total_p if total_p > 0 else 0.5
         current_sipp -= pcls_val * ratio
         current_aviva -= pcls_val * (1 - ratio)
@@ -183,12 +193,12 @@ for m in range(int((death_age - current_age) * 12) + 1):
         if user_mode == "Órabéres alkalmazott":
             current_uk_house = target_house_value
             current_mortgage_debt = max(0, target_house_value - pcls_val)
-            # Havi törlesztő számítása (Standard mortgage formula)
+            # Havi törlesztő számítása
             r = (mortgage_interest / 100) / 12
             n = mortgage_term * 12
-            if r > 0:
+            if r > 0 and n > 0:
                 mortgage_payment = current_mortgage_debt * (r * (1 + r)**n) / ((1 + r)**n - 1)
-            else:
+            elif n > 0:
                 mortgage_payment = current_mortgage_debt / n
         else:
             current_uk_house = pcls_val
@@ -217,13 +227,13 @@ for m in range(int((death_age - current_age) * 12) + 1):
             total_tax_paid += tax_this_month
             total_gross_income_drawdown += (actual_gross + st_p_m)
             
-            # Levonás arányosan
             ratio = current_sipp / total_pension if total_pension > 0 else 0.5
             current_sipp -= actual_gross * ratio
             current_aviva -= actual_gross * (1 - ratio)
             
-            # Cash Flow prioritás: 1. Hitel, 2. Megélhetés, 3. ISA
-            net_after_mortgage = total_net - mortgage_payment
+            # Cash Flow prioritás (mai értéken számolva a törlesztőt is)
+            adj_mortgage_payment = mortgage_payment / ((1 + (inflation/100))**(m/12))
+            net_after_mortgage = total_net - adj_mortgage_payment
             
             if net_after_mortgage >= monthly_living_cost:
                 current_trust += (net_after_mortgage - monthly_living_cost)
@@ -234,7 +244,8 @@ for m in range(int((death_age - current_age) * 12) + 1):
             net_state = calculate_net(0, st_p_m)
             total_gross_income_drawdown += st_p_m
             total_tax_paid += (st_p_m - net_state)
-            current_trust = max(0, current_trust - (monthly_living_cost + mortgage_payment - net_state))
+            adj_mortgage_payment = mortgage_payment / ((1 + (inflation/100))**(m/12))
+            current_trust = max(0, current_trust - (monthly_living_cost + adj_mortgage_payment - net_state))
 
     sipp_vals.append(current_sipp + loan_balance)
     aviva_vals.append(current_aviva)
@@ -252,7 +263,6 @@ if user_mode == "Órabéres alkalmazott":
 fig.add_trace(go.Scatter(x=ages, y=hu_base_vals, name='Magyar Perennis Bázis', mode='lines', line=dict(color='royalblue', width=3), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(65,105,225,0.4)']])))
 fig.add_trace(go.Scatter(x=ages, y=uk_house_vals, name='Saját Ingatlan', mode='lines', line=dict(color='teal', width=3), fill='tozeroy', fillgradient=dict(type='vertical', colorscale=[[0, 'rgba(255,255,255,0)'], [1, 'rgba(0,128,128,0.4)']])))
 
-# Hitelvonal (Csak ha van tartozás)
 if max(mortgage_debt_vals) > 0:
     fig.add_trace(go.Scatter(x=ages, y=mortgage_debt_vals, name='Jelzálog tartozás', mode='lines', line=dict(color='firebrick', width=2, dash='dash')))
 
@@ -279,14 +289,27 @@ c4.metric("Nettó Örökség", f"£{(total_at_death - iht_tax):,.0f}")
 st.markdown("### 🔍 Stratégiai Elemzés")
 col_a, col_b = st.columns(2)
 with col_a:
-    proj_net = calculate_net(gross_sipp_meltdown, state_p_annual/12)
-    st.write(f"**Jövedelem-megosztás a nyugdíj alatt:**")
-    st.write(f"- Tervezett havi nettó jövedelem: £{proj_net:,.0f}")
-    if user_mode == "Órabéres alkalmazott" and mortgage_payment > 0:
-        st.write(f"- 🏠 **Hitel törlesztő:** £{mortgage_payment:,.0f} / hó")
-    st.write(f"- 🛒 **Megélhetés (Zsebbe):** £{monthly_living_cost:,.0f} / hó")
+    st.write("**Hitelképesség és Törlesztés:**")
+    if user_mode == "Órabéres alkalmazott":
+        total_borrowing_income = active_annual_gross + partner_income
+        max_loan = total_borrowing_income * 4.5
+        # Megbecsült önerő 57 évesen (gyors futtatás a háttérben nem kell, csak a logikát írjuk le)
+        max_house = max_loan + final_pcls_val
+        
+        st.write(f"- 💳 **Max hitelkeret (4.5x):** £{max_loan:,.0f}")
+        st.write(f"- 🏠 **Max ingatlanérték (Hitel+Önerő):** £{max_house:,.0f}")
+        
+        if target_house_value > max_house:
+            st.error(f"⚠️ A tervezett £{target_house_value:,.0f} házérték meghaladja a hitelképességedet (£{max_house:,.0f})!")
+        else:
+            st.success(f"✅ A hitelkereted elegendő a választott ingatlanhoz.")
+            
+        if mortgage_payment > 0:
+            st.write(f"- 💸 **Havi törlesztő (induló):** £{mortgage_payment:,.0f}")
+            st.write(f"- 📉 **Havi törlesztő {death_age} évesen (reálértéken):** £{mortgage_payment / ((1 + (inflation/100))**(death_age-pcls_age)):,.0f}")
 
 with col_b:
+    st.write("**Vagyonvédelem:**")
     idx_ret = int((drawdown_start_age-current_age)*12)
     val_at_ret = trust_vals[idx_ret] if idx_ret < len(trust_vals) else trust_vals[-1]
     w_rate = (monthly_living_cost * 12 / max(1, val_at_ret)) * 100
