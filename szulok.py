@@ -25,7 +25,7 @@ st.sidebar.header("📌 Időtáv & Élethossz")
 if user_mode == "Nemzetközi Kivonulás (UK-HU Transzfer)":
     current_age = st.sidebar.slider("Hány évesen indul a transzfer?", 45, 75, 53)
 else:
-    current_age = st.sidebar.slider("Jelenlegi életkor", 18, 74, 34)
+    current_age = st.sidebar.slider("Jelenlegi életkor", 18, 74, 43)  # Beállítva a valós 43 éves életkorodra
 death_age = st.sidebar.slider("Várható élethossz", 75, 100, 85)
 
 # --- BEÁLLÍTÁSOK INICIALIZÁLÁSA ---
@@ -37,7 +37,7 @@ monthly_sipp_user_net, monthly_aviva_total = 0, 0
 working_years = 0
 max_loan_limit = 0
 
-# Vállalkozói specifikus változók inicializálása a globális névtérben
+# Vállalkozói specifikus változók inicializálása
 wren_weeks = 48
 wren_rate_per_kitchen = 3300
 subbie_day_rate = 160
@@ -46,6 +46,7 @@ vane_expenses_annual = 10500
 director_salary = 12570
 monthly_sipp_director = 5000
 annual_dividend_taken = 0
+holding_transfer_annual = 0
 
 if user_mode == "Órabéres alkalmazott":
     st.sidebar.header("👷 Alkalmazotti adatok")
@@ -64,7 +65,7 @@ if user_mode == "Órabéres alkalmazott":
     
     st.sidebar.header("🏢 AVIVA (Workplace Pension)")
     start_aviva = st.sidebar.number_input("Jelenlegi AVIVA egyenleg (£)", value=15000)
-    ee_pct = st.sidebar.slider("Saját hozzájralás (%)", 0, 20, 4)
+    ee_pct = st.sidebar.slider("Saját hozzájárulás (%)", 0, 20, 4)
     er_pct = st.sidebar.slider("Munkáltatói hozzájárulás (%)", 0, 20, 4)
     aviva_return = st.sidebar.slider("AVIVA várható éves hozama (%)", 1.0, 10.0, 4.5)
     multiplier = 2 if partner_mode else 1
@@ -76,41 +77,37 @@ if user_mode == "Órabéres alkalmazott":
     working_years = st.sidebar.slider("Hány évig dolgozol még?", 0, int(75-current_age), 38)
 
 elif user_mode == "Céges igazgató / Vállalkozó":
-    st.sidebar.header("🏢 Wren Approved Installer Profil")
-    start_sipp = st.sidebar.number_input("Jelenlegi SIPP egyenleg (£)", value=15000)
+    st.sidebar.header("🏢 Level 3 Vocational Diploma – Site Carpentry")
+    start_sipp = st.sidebar.number_input("Jelenlegi SIPP egyenleg (£)", value=0)  # A nulláról indítunk
     
-    st.sidebar.markdown("### 🍳 Wren Kitchens Bevételek")
+    st.sidebar.markdown("### 🍳 1-2. Év: Betanulás & Ltd Alapozás")
+    st.sidebar.caption("• 43-44 év: Subbie-ként betanulás egy másik Wren installer mellett (£0 SIPP, £0 Holding profit).")
+    st.sidebar.caption("• 44-46 év: Saját Ltd indítása, szerszámok/furgon kifizetése, fix £5,000/év jelképes SIPP hozzájárulás.")
+    
+    st.sidebar.markdown("### 🚀 3. Évtől (46 éves kortól): Fővállalkozói Wren Modell")
     wren_rate_per_kitchen = st.sidebar.number_input("Konyhánkénti dry-fit tiszta munkadíj (£)", value=3300)
-    wren_weeks = st.sidebar.slider("Aktív munkával töltött hetek száma egy évben", 1, 52, 48)
+    wren_weeks = st.sidebar.slider("Aktív hetek száma egy évben", 1, 52, 48)
     
-    # Bruttó kiszámlázott jövedelem
     company_annual_revenue = wren_rate_per_kitchen * wren_weeks
     cis_cash_flow_received = company_annual_revenue * 0.80
-    st.sidebar.caption(f"📈 Számlázott bruttó jövedelem: £{company_annual_revenue:,.0f}")
-    st.sidebar.caption(f"💸 Beérkező nettó cash-flow (20% CIS levonás után): £{cis_cash_flow_received:,.0f}")
+    st.sidebar.caption(f"📈 Számlázott éves bruttó: £{company_annual_revenue:,.0f} (Beérkező CIS cash: £{cis_cash_flow_received:,.0f})")
     
-    st.sidebar.markdown("### 🪚 Alvállalkozó (Subbie) & Fix Költségek")
+    st.sidebar.markdown("### 🪚 Alvállalkozó (Subbie) és Fix Költségek (46 év felett)")
     subbie_day_rate = st.sidebar.number_input("Subbie napi bruttó jövedelme (£)", value=160)
-    subbie_days_per_week = st.sidebar.slider("Hány napot dolgozik egy héten a Subbie?", 1, 7, 5)
-    vane_expenses_annual = st.sidebar.number_input("Fix működési költségek (Furgon, üzemanyag, könyvelő, szerszámok) (£)", value=10500)
+    subbie_days_per_week = st.sidebar.slider("Subbie napok száma egy héten", 1, 7, 5)
+    vane_expenses_annual = st.sidebar.number_input("Fix működési költségek (Furgon, üzemanyag, könyvelő) (£)", value=10500)
     
-    # Éves Subbie bruttó számítás
     subbie_annual_gross = subbie_day_rate * subbie_days_per_week * wren_weeks
-    subbie_cash_paid = subbie_annual_gross * 0.80
     company_expenses = subbie_annual_gross + vane_expenses_annual
     
-    st.sidebar.caption(f"👷 Subbie éves bruttó költsége: £{subbie_annual_gross:,.0f} (Neki utalt nettó: £{subbie_cash_paid:,.0f})")
-    st.sidebar.caption(f"📊 Összes levonható céges költség: £{company_expenses:,.0f}")
-    
-    st.sidebar.markdown("### 💰 Extrakciós Stratégia & Optimalizáció")
+    st.sidebar.markdown("### 💰 Optimalizált Extrakciós Stratégia (46 év felett)")
     director_salary = st.sidebar.number_input("Igazgatói optimalizált éves bér (£)", value=12570)
     monthly_sipp_director = st.sidebar.number_input("Havi céges SIPP hozzájárulás (Maximalizált) (£)", value=5000)
     
-    # CT Alap számítás (SIPP levonható költség)
+    # Társasági adó (Corporation Tax) alap számítás a 46. év utáni aktív időszakra
     annual_corporate_sipp = monthly_sipp_director * 12
     corporate_profit_before_tax = max(0, company_annual_revenue - company_expenses - director_salary - annual_corporate_sipp)
     
-    # UK Corporation Tax marginal relief sávos logikája
     if corporate_profit_before_tax <= 50000:
         corp_tax = corporate_profit_before_tax * 0.19
     elif corporate_profit_before_tax <= 250000:
@@ -122,12 +119,10 @@ elif user_mode == "Céges igazgató / Vállalkozó":
     max_dividend_possible = retained_earnings
     
     annual_dividend_taken = st.sidebar.slider("Kivett éves osztalék az Ltd-ből (£)", 0, int(max_dividend_possible), int(max_dividend_possible))
-    
-    # Holdingba vándorló összeg
     holding_transfer_annual = retained_earnings - annual_dividend_taken
-    st.sidebar.info(f"📊 Társasági adó (CT): £{corp_tax:,.0f} | 🏢 Holdingba kerülő profit: £{holding_transfer_annual:,.0f}")
     
-    # Aktív jövedelem átadása a meglévő globális logikáknak
+    st.sidebar.info(f"📊 Társasági adó (CT): £{corp_tax:,.0f} | 🏢 Holdingba vándorló profit: £{holding_transfer_annual:,.0f}")
+    
     active_annual_gross = director_salary + annual_dividend_taken
     
     st.sidebar.header("👫 Családi Szövetség (Vállalkozó)")
@@ -147,7 +142,6 @@ gross_sipp_meltdown = st.sidebar.slider("Havi bruttó SIPP+AVIVA kivét (£)", 0
 state_p_monthly = (11502 / 12) * (2 if partner_mode else 1)
 total_projected_gross = gross_sipp_meltdown + state_p_monthly
 
-# Adósáv heatmap (Partner esetén dupla sávok)
 threshold_20 = 4189 * (2 if partner_mode else 1)
 threshold_40 = 10428 * (2 if partner_mode else 1)
 
@@ -201,7 +195,7 @@ current_mortgage_debt, total_tax_paid, total_gross_drawdown, mortgage_payment = 
 initial_mortgage_payment, sipp_at_retirement, final_pcls_val = 0, 0, 0
 pcls_taken = False
 
-# --- SZERKEZETI SZÉTVÁLASZTÁS: ALKALMAZOTTI ÁG (IDŐKAPSZULA) ---
+# --- SZERKEZETI SZÉTVÁLASZTÁS: ALKALMAZOTTI ÁG (ÉRINTETLEN IDŐKAPSZULA) ---
 if user_mode == "Órabéres alkalmazott" or user_mode == "Nemzetközi Kivonulás (UK-HU Transzfer)":
     if partner_mode:
         current_sipp *= 2
@@ -291,31 +285,37 @@ if user_mode == "Órabéres alkalmazott" or user_mode == "Nemzetközi Kivonulás
         holding_vals.append(current_holding)
         mortgage_debt_vals.append(current_mortgage_debt)
 
-# --- SZERKEZETI SZÉTVÁLASZTÁS: VÁLLALKOZÓI ÁG (ÚJ LOGIKA) ---
+# --- VÁLLALKOZÓI ÁG: 4 SZAKASZOS IDŐVONAL SZIMULÁCIÓ ---
 elif user_mode == "Céges igazgató / Vállalkozó":
     if partner_mode:
-        current_sipp *= 2  # Ha van partner, feltételezzük a megosztott bázist
+        current_sipp *= 2
 
     for m in range(int((death_age - current_age) * 12) + 1):
         age = current_age + (m / 12)
         ages.append(age)
         
-        # Vagyonok növekedése a piaci hozamokkal
+        # Kamatos kamat piaci növekedés
         current_sipp *= (1 + m_market_rate)
         current_isa *= (1 + m_market_rate)
         current_holding *= (1 + m_market_rate)
         current_uk_house *= (1 + (inflation / 100)) ** (1/12)
 
-        # Aktív évek: Céges SIPP és adómentes holding transzfer felhalmozása
+        # AKTÍV ÉVEK SZAKASZOS LOGIKÁJA
         if m <= (working_years * 12):
-            current_sipp += monthly_sipp_director
-            # A cégből kivett osztalékon felül megmaradó, leadózott profit átvándorol a holdingba
-            # Éves tőkét havi szintre bontva halmozzuk fel
-            current_holding += (holding_transfer_annual / 12)
+            if age < 44:
+                # 1. fázis: Betanulás subbie-ként (~1 év) -> SIPP és Holding tartaléképítés még £0
+                pass
+            elif age < 46:
+                # 2. fázis: Ltd bejáratás és alapozás (2 év) -> Fix, jelképes £5,000/év SIPP hozzájárulás
+                current_sipp += (5000 / 12)
+            else:
+                # 3. fázis: A birodalom csúcsra járatása (46 év felett) -> Havi £5,000 SIPP maxolás + Holding transzfer
+                current_sipp += monthly_sipp_director
+                current_holding += (holding_transfer_annual / 12)
 
-        # Ingatlanvásárlás 25% adómentes PCLS-ből
+        # Ingatlanvásárlás SIPP 25% PCLS-ből
         if not pcls_taken and age >= pcls_age:
-            total_p = current_sipp  # Vállalkozónak csak SIPP van, AVIVA 0
+            total_p = current_sipp
             pcls_val = total_p * 0.25
             final_pcls_val = pcls_val
             current_sipp = max(0, current_sipp - pcls_val)
@@ -339,7 +339,7 @@ elif user_mode == "Céges igazgató / Vállalkozó":
             if current_mortgage_debt <= 0: 
                 current_mortgage_debt, mortgage_payment = 0, 0
         
-        # Nyugdíjas évek: SIPP Kiszivattyúzási stratégia (Max £20k ISA-ba, maradék Holdingba)
+        # SIPP Kiszivattyúzás: Max £20,000/év lakossági ISA-ba, a felette lévő rész a Holdingba
         st_p_m = (11502 / 12 * (2 if partner_mode else 1)) if age >= 70 else 0
         if age >= drawdown_start_age:
             if sipp_at_retirement == 0: 
@@ -352,17 +352,13 @@ elif user_mode == "Céges igazgató / Vállalkozó":
                 total_gross_drawdown += (actual_gross + st_p_m)
                 current_sipp = max(0, current_sipp - actual_gross)
                 
-                # Zseniális kiszivattyúzási cash-flow mechanizmus:
                 net_after_essentials = total_net - adj_mortgage_payment - monthly_living_cost
                 if net_after_essentials > 0:
-                    # Évi £20,000 / fő ISA limit havi szinten (£1,666 / hó fejenként)
                     isa_limit = 1666 * (2 if partner_mode else 1)
                     isa_in = min(net_after_essentials, isa_limit)
                     current_isa += isa_in
-                    # Ami ezen felül bezúdul, az megy vissza a Holding adóvédett Vanguard alapjába
                     current_holding += (net_after_essentials - isa_in)
                 else:
-                    # Ha hiány van, először a Holdingból fedezzük, hogy az ISA érintetlenül hizzon
                     shortfall = abs(net_after_essentials)
                     if current_holding >= shortfall:
                         current_holding -= shortfall
@@ -380,7 +376,7 @@ elif user_mode == "Céges igazgató / Vállalkozó":
                     current_isa = max(0, current_isa - shortfall)
 
         sipp_vals.append(current_sipp)
-        aviva_vals.append(0)  # Vállalkozóként nincs AVIVA
+        aviva_vals.append(0)
         house_vals.append(current_uk_house)
         isa_vals.append(current_isa)
         holding_vals.append(current_holding)
